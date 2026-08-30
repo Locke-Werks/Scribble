@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <map>
 
+#include "paths.hpp"
 #include "sherpa-onnx/c-api/cxx-api.h"
 
 namespace scribe {
@@ -12,12 +13,12 @@ namespace {
 namespace sx = sherpa_onnx::cxx;
 
 const char *provider_for(Accel accel) {
-#ifdef SCRIBE_HAVE_CUDA
-    return accel == Accel::Cuda ? "cuda" : "cpu";
-#else
-    (void)accel;
-    return "cpu";
-#endif
+    if (accel == Accel::Cpu) {
+        return "cpu";
+    }
+    // Asking for CUDA when its provider cannot load aborts the process rather
+    // than degrading, so availability is probed instead of assumed.
+    return onnx_cuda_available() ? "cuda" : "cpu";
 }
 
 /// Overlap in seconds between a word and a diarized turn.

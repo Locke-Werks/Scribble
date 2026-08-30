@@ -3,11 +3,63 @@
 #include <algorithm>
 #include <cstring>
 
+#include "media.hpp"
+#include "paths.hpp"
+#include "sherpa-onnx/c-api/cxx-api.h"
 #include "util.hpp"
 #include "whisper.h"
 
 namespace scribe {
 namespace {
+
+namespace sx = sherpa_onnx::cxx;
+
+const char *onnx_provider_for(Accel accel) {
+    if (accel == Accel::Cpu) {
+        return "cpu";
+    }
+    // Asking for CUDA when its provider cannot load aborts the process rather
+    // than degrading, so availability is probed instead of assumed.
+    return onnx_cuda_available() ? "cuda" : "cpu";
+}
+
+/// Finds a model component inside an unpacked transducer directory. Upstream
+/// varies the exact filenames between quantised and full releases, so the
+/// component is matched by prefix rather than assumed.
+fs::path find_component(const fs::path &dir, const std::string &prefix) {
+    std::error_code ec;
+    fs::path best;
+    for (const auto &entry : fs::directory_iterator(dir, ec)) {
+        if (!entry.is_regular_file(ec)) {
+            continue;
+        }
+        const std::string name = to_lower(entry.path().filename().string());
+        if (starts_with(name, prefix) && name.size() > 5 &&
+            name.substr(name.size() - 5) == ".onnx") {
+            // Prefer the int8 export when both are present: it is the one the
+            // archive is built around and the accuracy difference is marginal.
+            if (best.empty() || name.find("int8") != std::string::npos) {
+                best = entry.path();
+            }
+        }
+    }
+    return best;
+}
+
+/// NeMo BPE marks a word start with U+2581, the same role a leading space
+/// plays in Whisper's vocabulary.
+constexpr const char *kWordStart = "\xe2\x96\x81";
+
+bool is_word_start(const std::string &token) {
+    return token.rfind(kWordStart, 0) == 0;
+}
+
+std::string strip_word_marker(const std::string &token) {
+    if (is_word_start(token)) {
+        return token.substr(std::strlen(kWordStart));
+    }
+    return token;
+}
 
 /// State shared with the whisper.cpp callbacks, which are plain C function
 /// pointers and so cannot capture.
@@ -115,7 +167,14 @@ bool on_abort(void *user) {
 }  // namespace
 
 struct Transcriber::Impl {
+    AsrBackend backend = AsrBackend::Whisper;
+
     whisper_context *ctx = nullptr;
+
+    std::unique_ptr<sx::OfflineRecognizer> recognizer;
+    std::unique_ptr<sx::VadModelConfig> vad_config;
+    fs::path vad_model;
+
     Config cfg;
     std::string model_name;
     bool gpu = false;
@@ -154,6 +213,7 @@ std::unique_ptr<Transcriber> Transcriber::create(const Config &cfg, const fs::pa
     }
 
     std::unique_ptr<Transcriber> self(new Transcriber());
+    self->impl_->backend = AsrBackend::Whisper;
     self->impl_->ctx = ctx;
     self->impl_->cfg = cfg;
     self->impl_->model_name = model_file.stem().string();
@@ -178,6 +238,239 @@ std::string Transcriber::model_name() const { return impl_->model_name; }
 
 bool Transcriber::using_gpu() const { return impl_->gpu; }
 
+std::unique_ptr<Transcriber> Transcriber::create_parakeet(const Config &cfg,
+                                                          const fs::path &model_dir,
+                                                          const fs::path &vad_model,
+                                                          std::string *error) {
+    std::error_code ec;
+    if (!fs::is_directory(model_dir, ec)) {
+        if (error) {
+            *error = "parakeet model directory not found: " + model_dir.string();
+        }
+        return nullptr;
+    }
+
+    const fs::path encoder = find_component(model_dir, "encoder");
+    const fs::path decoder = find_component(model_dir, "decoder");
+    const fs::path joiner = find_component(model_dir, "joiner");
+    const fs::path tokens = model_dir / "tokens.txt";
+
+    if (encoder.empty() || decoder.empty() || joiner.empty() || !fs::exists(tokens, ec)) {
+        if (error) {
+            *error = "incomplete parakeet model in " + model_dir.string() +
+                     " (need encoder, decoder, joiner and tokens.txt)";
+        }
+        return nullptr;
+    }
+    if (!fs::exists(vad_model, ec)) {
+        if (error) {
+            *error = "VAD model not found: " + vad_model.string();
+        }
+        return nullptr;
+    }
+
+    sx::OfflineRecognizerConfig config;
+    config.model_config.transducer.encoder = encoder.string();
+    config.model_config.transducer.decoder = decoder.string();
+    config.model_config.transducer.joiner = joiner.string();
+    config.model_config.tokens = tokens.string();
+    config.model_config.model_type = "nemo_transducer";
+    config.model_config.num_threads = std::max(1, cfg.n_threads / 2);
+    config.decoding_method = "greedy_search";
+
+    const bool want_gpu = cfg.asr_accel != Accel::Cpu;
+    const char *provider = onnx_provider_for(cfg.asr_accel);
+    const bool on_gpu = std::strcmp(provider, "cuda") == 0;
+
+    config.model_config.provider = provider;
+    if (!on_gpu) {
+        // Parakeet on CPU is slower than realtime, so give it every core rather
+        // than the half-share that assumes a GPU is carrying the load.
+        config.model_config.num_threads = std::max(1, cfg.n_threads);
+    }
+
+    auto recognizer = sx::OfflineRecognizer::Create(config);
+    if (!recognizer.Get()) {
+        if (error) {
+            *error = "cannot initialise the parakeet recognizer";
+        }
+        return nullptr;
+    }
+
+    std::unique_ptr<Transcriber> self(new Transcriber());
+    self->impl_->backend = AsrBackend::Parakeet;
+    self->impl_->cfg = cfg;
+    self->impl_->model_name = model_dir.filename().string();
+    self->impl_->gpu = on_gpu;
+    self->impl_->recognizer =
+        std::make_unique<sx::OfflineRecognizer>(std::move(recognizer));
+    self->impl_->vad_model = vad_model;
+
+    if (want_gpu && !on_gpu) {
+        // Not fatal, but the reason to pick Parakeet over Whisper is speed, and
+        // on CPU it does not have any.
+        self->impl_->model_name += " (CPU, cuDNN not installed)";
+    }
+    return self;
+}
+
+namespace {
+
+/// Decodes one VAD-delimited utterance and turns the token stream into a
+/// Segment with word timings.
+Segment decode_utterance(sx::OfflineRecognizer &recognizer, const std::vector<float> &samples,
+                         double offset, int index) {
+    auto stream = recognizer.CreateStream();
+    stream.AcceptWaveform(kSampleRate, samples.data(),
+                          static_cast<std::int32_t>(samples.size()));
+    recognizer.Decode(&stream);
+    auto result = recognizer.GetResult(&stream);
+
+    Segment seg;
+    seg.index = index;
+    seg.start = offset;
+    seg.end = offset + static_cast<double>(samples.size()) / kSampleRate;
+    seg.text = trim(result.text);
+
+    for (size_t i = 0; i < result.tokens.size(); ++i) {
+        const std::string &token = result.tokens[i];
+        if (token.empty()) {
+            continue;
+        }
+        const double start =
+            i < result.timestamps.size() ? offset + result.timestamps[i] : seg.start;
+        // TDT models report a duration per token. Without it the only honest
+        // end time is the next token's start, filled in below.
+        const double end =
+            i < result.durations.size() ? start + result.durations[i] : start;
+
+        if (is_word_start(token) || seg.words.empty()) {
+            Word w;
+            w.text = strip_word_marker(token);
+            w.start = start;
+            w.end = end;
+            w.probability = 1.0f;
+            if (!w.text.empty()) {
+                seg.words.push_back(std::move(w));
+            }
+        } else {
+            Word &w = seg.words.back();
+            w.text += token;
+            w.end = std::max(w.end, end);
+        }
+    }
+
+    for (size_t i = 0; i + 1 < seg.words.size(); ++i) {
+        if (seg.words[i].end <= seg.words[i].start) {
+            seg.words[i].end = seg.words[i + 1].start;
+        }
+    }
+    if (!seg.words.empty() && seg.words.back().end <= seg.words.back().start) {
+        seg.words.back().end = seg.end;
+    }
+
+    return seg;
+}
+
+}  // namespace
+
+bool Transcriber::transcribe_parakeet(const std::vector<float> &samples,
+                                      const std::function<void(const Segment &)> &on_segment,
+                                      const std::function<void(double)> &on_progress_fn,
+                                      const CancelToken &cancel, Result *result,
+                                      std::string *error) {
+    sx::VadModelConfig vad_config;
+    vad_config.silero_vad.model = impl_->vad_model.string();
+    vad_config.silero_vad.threshold = 0.5f;
+    // Loose enough not to split a sentence at an ordinary breath. Splitting
+    // mid-phrase costs the recognizer the context it needs at both new edges.
+    vad_config.silero_vad.min_silence_duration = 0.55f;
+    vad_config.silero_vad.min_speech_duration = 0.25f;
+    // Utterances longer than this are cut regardless. An unbounded segment on
+    // continuous speech would grow until the recognizer ran out of memory.
+    vad_config.silero_vad.max_speech_duration = 25.0f;
+    vad_config.sample_rate = kSampleRate;
+    vad_config.num_threads = 1;
+    vad_config.provider = "cpu";
+
+    auto vad = sx::VoiceActivityDetector::Create(vad_config, 60.0f);
+    if (!vad.Get()) {
+        if (error) {
+            *error = "cannot initialise voice activity detection";
+        }
+        return false;
+    }
+
+    const std::int32_t window = kSampleRate / 2;
+    // The VAD trims to where speech is confidently present, which clips the
+    // onset and tail of an utterance. Feeding the recognizer a padded slice of
+    // the original audio instead recovers the words that would otherwise be
+    // lost at every boundary.
+    const size_t pad = static_cast<size_t>(kSampleRate * 0.3);
+    int index = 0;
+    size_t offset = 0;
+
+    const auto drain = [&](bool flush) {
+        if (flush) {
+            vad.Flush();
+        }
+        while (!vad.IsEmpty()) {
+            auto segment = vad.Front();
+            vad.Pop();
+            if (segment.samples.empty()) {
+                continue;
+            }
+
+            const auto raw_start = static_cast<size_t>(std::max(0, segment.start));
+            const size_t begin = raw_start > pad ? raw_start - pad : 0;
+            const size_t finish =
+                std::min(samples.size(), raw_start + segment.samples.size() + pad);
+            if (finish <= begin) {
+                continue;
+            }
+
+            std::vector<float> padded(samples.begin() + static_cast<std::ptrdiff_t>(begin),
+                                      samples.begin() + static_cast<std::ptrdiff_t>(finish));
+
+            Segment seg = decode_utterance(*impl_->recognizer, padded,
+                                           static_cast<double>(begin) / kSampleRate, index);
+            if (seg.text.empty()) {
+                continue;
+            }
+            seg.index = index++;
+            result->segments.push_back(seg);
+            if (on_segment) {
+                on_segment(seg);
+            }
+        }
+    };
+
+    while (offset < samples.size()) {
+        if (!cancel.wait_if_paused()) {
+            result->cancelled = true;
+            return true;
+        }
+        const auto count =
+            static_cast<std::int32_t>(std::min<size_t>(window, samples.size() - offset));
+        vad.AcceptWaveform(samples.data() + offset, count);
+        offset += static_cast<size_t>(count);
+
+        drain(false);
+
+        if (on_progress_fn) {
+            on_progress_fn(static_cast<double>(offset) / static_cast<double>(samples.size()));
+        }
+    }
+
+    drain(true);
+
+    result->language = impl_->cfg.language.empty() ? std::string("en") : impl_->cfg.language;
+    if (on_progress_fn) {
+        on_progress_fn(1.0);
+    }
+    return true;
+}
+
 bool Transcriber::transcribe(const std::vector<float> &samples,
                              const std::function<void(const Segment &)> &on_segment,
                              const std::function<void(double)> &on_progress_fn,
@@ -187,6 +480,10 @@ bool Transcriber::transcribe(const std::vector<float> &samples,
             *error = "no audio samples";
         }
         return false;
+    }
+
+    if (impl_->backend == AsrBackend::Parakeet) {
+        return transcribe_parakeet(samples, on_segment, on_progress_fn, cancel, result, error);
     }
 
     const Config &cfg = impl_->cfg;

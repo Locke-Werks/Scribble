@@ -13,6 +13,7 @@ mirror_tree = true          # reproduce the input folder structure under out_dir
 keep_work   = false         # keep decoded wavs after a file completes
 
 # -- transcription ------------------------------------------------------------
+backend   = "whisper"       # whisper | parakeet
 model     = "large-v3"      # see: scribe models
 asr_accel = "auto"          # auto | cpu | cuda
 language  = ""              # empty detects per file
@@ -29,6 +30,15 @@ temperature_fallback       = true
 # which are usually the words the transcript is read for.
 hotwords       = []
 initial_prompt = ""
+
+# -- source separation --------------------------------------------------------
+# Strips music and background before transcription. The largest single accuracy
+# gain on broadcast, field and music-bedded audio, and a small loss on already
+# clean speech, which is why "auto" measures the noise floor first rather than
+# running it on everything.
+isolate                = "never"       # never | auto | always
+isolate_model          = "uvr-mdxnet"
+isolate_auto_threshold = 0.28
 
 # -- diarization --------------------------------------------------------------
 diarize            = true

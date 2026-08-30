@@ -37,6 +37,12 @@ bool probe_media(const fs::path &ffprobe, const fs::path &input, MediaInfo *info
 bool decode_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
                    int channel, std::string *error);
 
+/// Decodes at an arbitrary rate and channel count. Source separation runs at
+/// the model's own rate on stereo, so it needs the audio before the pipeline
+/// collapses it to 16 kHz mono.
+bool decode_audio(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
+                  int channel, int sample_rate, int channels, std::string *error);
+
 /// Correlation between the two channels of a stereo file. Near 1.0 means it is
 /// one mono source duplicated, so splitting would double the work for nothing.
 double channel_correlation(const fs::path &ffmpeg, const fs::path &input, double seconds);

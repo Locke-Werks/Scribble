@@ -23,4 +23,13 @@ fs::path find_ffprobe();
 /// Directory holding the running executable.
 fs::path executable_dir();
 
+/// Whether onnxruntime's CUDA execution provider can actually load.
+///
+/// It needs cuDNN, which the CUDA toolkit does not install and the driver does
+/// not ship. When it is absent sherpa-onnx does not degrade to CPU, it aborts
+/// the process, so the provider has to be chosen by probing rather than by
+/// asking for CUDA and handling failure. whisper.cpp is unaffected: it goes
+/// through cuBLAS and needs no cuDNN.
+bool onnx_cuda_available();
+
 }  // namespace scribe

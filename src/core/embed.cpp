@@ -4,6 +4,7 @@
 #include <map>
 
 #include "media.hpp"
+#include "paths.hpp"
 #include "sherpa-onnx/c-api/cxx-api.h"
 #include "speakers.hpp"
 
@@ -13,12 +14,12 @@ namespace {
 namespace sx = sherpa_onnx::cxx;
 
 const char *provider_for(Accel accel) {
-#ifdef SCRIBE_HAVE_CUDA
-    return accel == Accel::Cuda ? "cuda" : "cpu";
-#else
-    (void)accel;
-    return "cpu";
-#endif
+    if (accel == Accel::Cpu) {
+        return "cpu";
+    }
+    // Asking for CUDA when its provider cannot load aborts the process rather
+    // than degrading, so availability is probed instead of assumed.
+    return onnx_cuda_available() ? "cuda" : "cpu";
 }
 
 /// Below this a voiceprint is dominated by whatever phoneme happened to be in

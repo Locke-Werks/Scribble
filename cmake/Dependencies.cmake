@@ -50,6 +50,12 @@ set(WHISPER_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS      OFF CACHE BOOL "" FORCE)
 if(SCRIBE_CUDA)
     set(GGML_CUDA ON CACHE BOOL "" FORCE)
+    # ggml defaults to -cudart static, and cudart_static.lib is built against
+    # the static CRT, which is the remaining source of the LNK4098 LIBCMT
+    # conflict once sherpa-onnx is on /MD. cuBLAS is already a dynamic runtime
+    # dependency, so the shared CUDA runtime costs one more small DLL and
+    # leaves a single CRT across the whole image.
+    set(CMAKE_CUDA_RUNTIME_LIBRARY Shared CACHE STRING "" FORCE)
 endif()
 
 FetchContent_Declare(whisper_cpp
@@ -91,3 +97,34 @@ FetchContent_Declare(sherpa_onnx
     GIT_SHALLOW    TRUE
 )
 FetchContent_MakeAvailable(sherpa_onnx)
+
+# onnxruntime's CUDA execution provider lives in side DLLs that must sit beside
+# the executable. Without them the provider does not degrade to CPU, it fails
+# the whole session with a missing-module error, so they are staged at build
+# time rather than left to the installer.
+set(SCRIBE_ORT_LIB_DIRS
+    "${FETCHCONTENT_BASE_DIR}/onnxruntime-src/lib"
+    "${CMAKE_BINARY_DIR}/_deps/onnxruntime-src/lib"
+)
+set(SCRIBE_ORT_DLLS "")
+foreach(_dir IN LISTS SCRIBE_ORT_LIB_DIRS)
+    if(EXISTS "${_dir}")
+        file(GLOB _found "${_dir}/onnxruntime*.dll")
+        list(APPEND SCRIBE_ORT_DLLS ${_found})
+        break()
+    endif()
+endforeach()
+list(REMOVE_DUPLICATES SCRIBE_ORT_DLLS)
+
+if(SCRIBE_ORT_DLLS)
+    add_custom_target(scribe_stage_onnxruntime ALL
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SCRIBE_ORT_DLLS}
+                "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
+        COMMENT "Staging onnxruntime runtime libraries"
+        VERBATIM
+    )
+else()
+    message(WARNING "onnxruntime DLLs not located; GPU inference for diarization "
+                    "and Parakeet will fall back to CPU")
+endif()

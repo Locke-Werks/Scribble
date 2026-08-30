@@ -178,8 +178,180 @@ bool write_wav_mono16k(const fs::path &path, const std::vector<float> &samples,
     return true;
 }
 
-float estimate_noise_floor(const std::vector<float> &samples) {
-    constexpr int kFrame = kSampleRate / 50;
+bool read_wav(const fs::path &path, WavData *out, std::string *error) {
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        if (error) {
+            *error = "cannot open " + path.string();
+        }
+        return false;
+    }
+
+    char riff[4] = {};
+    std::uint32_t riff_size = 0;
+    char wave[4] = {};
+    in.read(riff, 4);
+    read_u32(in, &riff_size);
+    in.read(wave, 4);
+    if (!in || std::memcmp(riff, "RIFF", 4) != 0 || std::memcmp(wave, "WAVE", 4) != 0) {
+        if (error) {
+            *error = path.string() + " is not a RIFF/WAVE file";
+        }
+        return false;
+    }
+
+    std::uint16_t format = 0;
+    std::uint16_t channels = 0;
+    std::uint32_t sample_rate = 0;
+    std::uint16_t bits = 0;
+    bool have_fmt = false;
+
+    for (;;) {
+        char id[4] = {};
+        std::uint32_t size = 0;
+        in.read(id, 4);
+        if (!in || !read_u32(in, &size)) {
+            break;
+        }
+
+        if (std::memcmp(id, "fmt ", 4) == 0) {
+            std::vector<char> fmt(size);
+            in.read(fmt.data(), size);
+            if (!in || size < 16) {
+                break;
+            }
+            std::memcpy(&format, fmt.data() + 0, 2);
+            std::memcpy(&channels, fmt.data() + 2, 2);
+            std::memcpy(&sample_rate, fmt.data() + 4, 4);
+            std::memcpy(&bits, fmt.data() + 14, 2);
+            // WAVE_FORMAT_EXTENSIBLE hides the real format in a subformat GUID
+            // whose first two bytes carry the same tag.
+            if (format == 0xFFFE && size >= 26) {
+                std::memcpy(&format, fmt.data() + 24, 2);
+            }
+            have_fmt = true;
+        } else if (std::memcmp(id, "data", 4) == 0) {
+            if (!have_fmt || channels == 0) {
+                if (error) {
+                    *error = "malformed WAV header in " + path.string();
+                }
+                return false;
+            }
+            const int bytes_per_sample = bits / 8;
+            if (bytes_per_sample == 0) {
+                if (error) {
+                    *error = "unsupported bit depth in " + path.string();
+                }
+                return false;
+            }
+
+            std::vector<char> raw(size);
+            in.read(raw.data(), size);
+            raw.resize(static_cast<size_t>(in.gcount()));
+
+            const size_t frames =
+                raw.size() / (static_cast<size_t>(bytes_per_sample) * channels);
+
+            out->channels = channels;
+            out->sample_rate = static_cast<int>(sample_rate);
+            out->planar.assign(channels, std::vector<float>(frames, 0.0f));
+
+            for (size_t f = 0; f < frames; ++f) {
+                for (int c = 0; c < channels; ++c) {
+                    const char *p =
+                        raw.data() + (f * channels + static_cast<size_t>(c)) * bytes_per_sample;
+                    float value = 0.0f;
+                    if (format == 3 && bits == 32) {
+                        std::memcpy(&value, p, 4);
+                    } else if (bits == 16) {
+                        std::int16_t v = 0;
+                        std::memcpy(&v, p, 2);
+                        value = static_cast<float>(v) / 32768.0f;
+                    } else if (bits == 32) {
+                        std::int32_t v = 0;
+                        std::memcpy(&v, p, 4);
+                        value = static_cast<float>(v) / 2147483648.0f;
+                    } else if (bits == 24) {
+                        std::int32_t v = (static_cast<unsigned char>(p[0])) |
+                                         (static_cast<unsigned char>(p[1]) << 8) |
+                                         (static_cast<signed char>(p[2]) << 16);
+                        value = static_cast<float>(v) / 8388608.0f;
+                    } else if (bits == 8) {
+                        value = (static_cast<unsigned char>(p[0]) - 128) / 128.0f;
+                    }
+                    out->planar[static_cast<size_t>(c)][f] = value;
+                }
+            }
+            return true;
+        } else {
+            in.seekg(size + (size & 1), std::ios::cur);
+            if (!in) {
+                break;
+            }
+        }
+    }
+
+    if (error) {
+        *error = "no data chunk in " + path.string();
+    }
+    return false;
+}
+
+bool write_wav(const fs::path &path, const WavData &data, std::string *error) {
+    std::error_code ec;
+    fs::create_directories(path.parent_path(), ec);
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        if (error) {
+            *error = "cannot write " + path.string();
+        }
+        return false;
+    }
+
+    const auto channels = static_cast<std::uint16_t>(std::max(1, data.channels));
+    const size_t frames = data.frames();
+    const auto data_bytes =
+        static_cast<std::uint32_t>(frames * channels * sizeof(std::int16_t));
+
+    WavHeader h{};
+    std::memcpy(h.riff, "RIFF", 4);
+    h.riff_size = 36 + data_bytes;
+    std::memcpy(h.wave, "WAVE", 4);
+    std::memcpy(h.fmt, "fmt ", 4);
+    h.fmt_size = 16;
+    h.format = 1;
+    h.channels = channels;
+    h.sample_rate = static_cast<std::uint32_t>(data.sample_rate);
+    h.bits = 16;
+    h.block_align = static_cast<std::uint16_t>(channels * 2);
+    h.byte_rate = h.sample_rate * h.block_align;
+    std::memcpy(h.data, "data", 4);
+    h.data_size = data_bytes;
+
+    out.write(reinterpret_cast<const char *>(&h), sizeof(h));
+
+    std::vector<std::int16_t> interleaved(frames * channels);
+    for (size_t f = 0; f < frames; ++f) {
+        for (std::uint16_t c = 0; c < channels; ++c) {
+            const auto &plane = data.planar[std::min<size_t>(c, data.planar.size() - 1)];
+            float v = f < plane.size() ? std::clamp(plane[f], -1.0f, 1.0f) : 0.0f;
+            interleaved[f * channels + c] = static_cast<std::int16_t>(std::lround(v * 32767.0f));
+        }
+    }
+    out.write(reinterpret_cast<const char *>(interleaved.data()),
+              static_cast<std::streamsize>(interleaved.size() * sizeof(std::int16_t)));
+
+    if (!out) {
+        if (error) {
+            *error = "write failed for " + path.string();
+        }
+        return false;
+    }
+    return true;
+}
+
+float estimate_noise_floor(const std::vector<float> &samples) {    constexpr int kFrame = kSampleRate / 50;
     if (samples.size() < static_cast<size_t>(kFrame) * 20) {
         return 0.0f;
     }

@@ -127,13 +127,18 @@ bool probe_media(const fs::path &ffprobe, const fs::path &input, MediaInfo *info
 
 bool decode_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
                    int channel, std::string *error) {
+    return decode_audio(ffmpeg, input, output, channel, kSampleRate, 1, error);
+}
+
+bool decode_audio(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
+                  int channel, int sample_rate, int channels, std::string *error) {
     std::error_code ec;
     fs::create_directories(output.parent_path(), ec);
 
     // Plain aresample, not soxr. Many ffmpeg builds ship without the soxr
     // resampler and fail outright when it is requested, and the quality
-    // difference resampling speech to 16 kHz for ASR is not measurable.
-    std::string filter = "aresample=16000";
+    // difference resampling speech for ASR is not measurable.
+    std::string filter = "aresample=" + std::to_string(sample_rate);
     if (channel >= 0) {
         filter = "pan=mono|c0=c" + std::to_string(channel) + "," + filter;
     }
@@ -147,8 +152,8 @@ bool decode_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path
         "-vn", "-sn", "-dn",
         "-map", "0:a:0",
         "-af", filter,
-        "-ac", "1",
-        "-ar", std::to_string(kSampleRate),
+        "-ac", std::to_string(channels),
+        "-ar", std::to_string(sample_rate),
         "-c:a", "pcm_s16le",
         "-f", "wav",
         tmp.string(),

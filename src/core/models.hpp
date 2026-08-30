@@ -12,15 +12,19 @@ namespace scribe {
 
 namespace fs = std::filesystem;
 
-enum class ModelKind { Whisper, Segmentation, Embedding };
+enum class ModelKind { Whisper, Segmentation, Embedding, Separation, Parakeet, Vad };
 
 struct ModelSpec {
     std::string name;
     ModelKind kind = ModelKind::Whisper;
     std::string url;
-    std::string filename;   ///< final name on disk
+    std::string filename;   ///< final name on disk, or directory name when extract_dir
     bool archive = false;   ///< url points at a tar.bz2 rather than the file
     std::string member;     ///< path inside the archive when `archive` is set
+    /// Unpack the whole archive into a directory instead of lifting one member.
+    /// Transducer models are several files plus a token list and are useless
+    /// split apart.
+    bool extract_dir = false;
     std::string description;
     std::int64_t approx_bytes = 0;
 };

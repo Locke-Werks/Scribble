@@ -14,6 +14,7 @@
 #include "models.hpp"
 #include "paths.hpp"
 #include "render.hpp"
+#include "separate.hpp"
 #include "speakers.hpp"
 #include "util.hpp"
 #include "wavio.hpp"
@@ -43,11 +44,15 @@ struct Pipeline::Impl {
     std::unique_ptr<Transcriber> transcriber;
     std::unique_ptr<Diarizer> diarizer;
     std::unique_ptr<Embedder> embedder;
+    std::unique_ptr<Separator> separator;
+    bool separator_failed = false;
 
     Impl(Config c, Database &database, EventSink &sink)
         : cfg(std::move(c)), db(database), reporter(sink) {}
 
     bool ensure_backends(std::string *error);
+    bool isolate(const MediaJob &job, const fs::path &target_wav,
+                 std::vector<float> *samples, std::string *error);
     bool process(const MediaJob &job, std::string *error);
     void write_outputs(const MediaJob &job, const std::vector<Segment> &segments,
                        const std::string &language, std::vector<std::string> *written);
@@ -81,13 +86,28 @@ bool Pipeline::Impl::ensure_backends(std::string *error) {
     };
 
     if (!transcriber) {
-        fs::path model;
-        if (!resolve_model(cfg.model, ModelKind::Whisper, cfg.model_dir, progress, &model,
-                           error)) {
-            return false;
+        if (cfg.backend == AsrBackend::Parakeet) {
+            fs::path model;
+            fs::path vad;
+            if (!resolve_model(cfg.model == "large-v3" ? "parakeet-tdt-0.6b-v3" : cfg.model,
+                               ModelKind::Parakeet, cfg.model_dir, progress, &model, error)) {
+                return false;
+            }
+            if (!resolve_model("silero-vad", ModelKind::Vad, cfg.model_dir, progress, &vad,
+                               error)) {
+                return false;
+            }
+            reporter.info("loading " + model.filename().string());
+            transcriber = Transcriber::create_parakeet(cfg, model, vad, error);
+        } else {
+            fs::path model;
+            if (!resolve_model(cfg.model, ModelKind::Whisper, cfg.model_dir, progress, &model,
+                               error)) {
+                return false;
+            }
+            reporter.info("loading " + model.filename().string());
+            transcriber = Transcriber::create(cfg, model, error);
         }
-        reporter.info("loading " + model.filename().string());
-        transcriber = Transcriber::create(cfg, model, error);
         if (!transcriber) {
             return false;
         }
@@ -197,6 +217,68 @@ std::vector<MediaJob> Pipeline::enqueue(const std::vector<fs::path> &paths) {
     return impl.jobs;
 }
 
+bool Pipeline::Impl::isolate(const MediaJob &job, const fs::path &target_wav,
+                             std::vector<float> *samples, std::string *error) {
+    if (!separator) {
+        auto progress = [this](const std::string &name, std::int64_t done,
+                               std::int64_t total) {
+            reporter.emit(EvModelDownload{name, done, total, total > 0 && done >= total});
+        };
+        fs::path model;
+        if (!resolve_model(cfg.isolate_model, ModelKind::Separation, cfg.model_dir, progress,
+                           &model, error)) {
+            separator_failed = true;
+            return false;
+        }
+        separator = Separator::create(cfg, model, error);
+        if (!separator) {
+            separator_failed = true;
+            return false;
+        }
+    }
+
+    const fs::path source(job.source_path);
+    const int rate = separator->sample_rate();
+
+    // Decoded again at the model's own rate rather than upsampled from the
+    // 16 kHz copy: nothing is recovered by upsampling, and the model was
+    // trained on full-bandwidth stereo.
+    fs::path wide = cfg.work_dir / (target_wav.stem().string() + ".sep-in.wav");
+    if (!decode_audio(ffmpeg, source, wide, job.track_count > 1 ? job.track : -1, rate, 2,
+                      error)) {
+        return false;
+    }
+
+    std::error_code ec;
+    WavData input;
+    if (!read_wav(wide, &input, error)) {
+        fs::remove(wide, ec);
+        return false;
+    }
+
+    WavData vocals;
+    if (!separator->isolate_vocals(input, &vocals, error)) {
+        fs::remove(wide, ec);
+        return false;
+    }
+    fs::remove(wide, ec);
+
+    fs::path stem_path = cfg.work_dir / (target_wav.stem().string() + ".vocals.wav");
+    if (!write_wav(stem_path, vocals, error)) {
+        return false;
+    }
+
+    // Back through ffmpeg for the downmix so the 16 kHz mono conversion stays
+    // in one place instead of being reimplemented here.
+    if (!decode_audio(ffmpeg, stem_path, target_wav, -1, kSampleRate, 1, error)) {
+        fs::remove(stem_path, ec);
+        return false;
+    }
+    fs::remove(stem_path, ec);
+
+    return read_wav_mono16k(target_wav, samples, error);
+}
+
 bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
     const fs::path source(job.source_path);
     reporter.emit(EvFileStarted{job});
@@ -218,15 +300,21 @@ bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
     }
 
     // -- optional isolation --------------------------------------------------
-    if (cfg.isolate != IsolateMode::Never) {
-        float floor = estimate_noise_floor(samples);
-        bool wanted = cfg.isolate == IsolateMode::Always ||
-                      floor >= cfg.isolate_auto_threshold;
+    if (cfg.isolate != IsolateMode::Never && !separator_failed) {
+        const float floor = estimate_noise_floor(samples);
+        const bool wanted =
+            cfg.isolate == IsolateMode::Always || floor >= cfg.isolate_auto_threshold;
         if (wanted) {
             reporter.stage(job.file_id, Stage::Isolating, -1.0,
                            "noise floor " + std::to_string(floor).substr(0, 4));
-            reporter.warn("source separation is not wired up yet, continuing without it",
-                          job.file_id);
+            std::string isolate_error;
+            if (isolate(job, wav, &samples, &isolate_error)) {
+                reporter.info("isolated vocals", job.file_id);
+            } else {
+                // Isolation is an optimisation. Losing it costs accuracy on a
+                // noisy file, but failing the job would cost the transcript.
+                reporter.warn("isolation skipped: " + isolate_error, job.file_id);
+            }
         }
     }
 

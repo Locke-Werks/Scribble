@@ -145,6 +145,8 @@ void print_usage() {
         "  --db <file>         speaker and transcript database\n"
         "  --language <code>   force a language instead of detecting\n"
         "  --formats <list>    comma separated: srt,vtt,md,json,txt,tsv\n"
+        "  --backend <name>    whisper or parakeet\n"
+        "  --isolate <mode>    never, auto or always. Strips music and background\n"
         "  --threshold <n>     speaker match threshold, 0 to 1\n"
         "  --no-diarize        transcribe without speaker separation\n"
         "  --overwrite         redo files already marked done\n"
@@ -162,6 +164,8 @@ struct Args {
     std::string db;
     std::string language;
     std::string formats;
+    std::string isolate;
+    std::string backend;
     float threshold = -1.0f;
     bool no_diarize = false;
     bool overwrite = false;
@@ -203,6 +207,10 @@ bool parse_args(int argc, char **argv, Args *args, std::string *error) {
             args->language = value_for(i, "--language");
         } else if (arg == "--formats") {
             args->formats = value_for(i, "--formats");
+        } else if (arg == "--isolate") {
+            args->isolate = value_for(i, "--isolate");
+        } else if (arg == "--backend") {
+            args->backend = value_for(i, "--backend");
         } else if (arg == "--threshold") {
             args->threshold = std::stof(value_for(i, "--threshold"));
         } else if (!arg.empty() && arg.front() == '-') {
@@ -301,6 +309,25 @@ int main(int argc, char **argv) {
     if (!args.db.empty())       cfg.db_path = args.db;
     if (!args.language.empty()) cfg.language = args.language;
     if (!args.formats.empty())  cfg.formats = split(args.formats, ',');
+    if (!args.isolate.empty()) {
+        if (iequals(args.isolate, "never"))       cfg.isolate = IsolateMode::Never;
+        else if (iequals(args.isolate, "auto"))   cfg.isolate = IsolateMode::Auto;
+        else if (iequals(args.isolate, "always")) cfg.isolate = IsolateMode::Always;
+        else {
+            std::fprintf(stderr, "--isolate must be never, auto or always\n");
+            return 2;
+        }
+    }
+    if (!args.backend.empty()) {
+        if (iequals(args.backend, "whisper")) {
+            cfg.backend = AsrBackend::Whisper;
+        } else if (iequals(args.backend, "parakeet")) {
+            cfg.backend = AsrBackend::Parakeet;
+        } else {
+            std::fprintf(stderr, "--backend must be whisper or parakeet\n");
+            return 2;
+        }
+    }
     if (args.threshold >= 0.0f) cfg.match_threshold = args.threshold;
     if (args.no_diarize)        cfg.diarize = false;
     if (args.overwrite)         cfg.overwrite = true;

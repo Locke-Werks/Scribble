@@ -106,4 +106,30 @@ fs::path find_ffmpeg() { return search_path(kFfmpegName); }
 
 fs::path find_ffprobe() { return search_path(kFfprobeName); }
 
+bool onnx_cuda_available() {
+#if defined(_WIN32) && defined(SCRIBE_HAVE_CUDA)
+    static const bool available = [] {
+        // Probed once. Both must resolve: the provider DLL is staged beside the
+        // executable, but cuDNN is a separate NVIDIA download that is commonly
+        // missing on machines that have the CUDA toolkit.
+        for (const wchar_t *name : {L"cudnn64_9.dll", L"onnxruntime_providers_cuda.dll"}) {
+            HMODULE module = LoadLibraryExW(name, nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
+                                                               LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
+                                                               LOAD_LIBRARY_SEARCH_SYSTEM32);
+            if (module == nullptr) {
+                module = LoadLibraryW(name);
+            }
+            if (module == nullptr) {
+                return false;
+            }
+            FreeLibrary(module);
+        }
+        return true;
+    }();
+    return available;
+#else
+    return false;
+#endif
+}
+
 }  // namespace scribe

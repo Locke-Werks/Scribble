@@ -18,6 +18,7 @@ add_library(scribe_core STATIC
     asr.cpp
     diarize.cpp
     embed.cpp
+    separate.cpp
     speakers.cpp
     render.cpp
     pipeline.cpp

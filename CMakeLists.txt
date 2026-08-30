@@ -39,6 +39,12 @@ if(MSVC)
         UNICODE
         _UNICODE
     )
+    # ggml enables OpenMP, which drags in MSVC's VCOMP.lib. That import library
+    # carries its own /DEFAULTLIB:LIBCMT directive regardless of the runtime
+    # everything else was built against, so linking /MD produces LNK4098 and a
+    # mixed CRT. Excluding the static CRT explicitly is the documented remedy,
+    # and it is safe here only because every other target is on /MD.
+    target_link_options(scribe_flags INTERFACE /NODEFAULTLIB:LIBCMT)
 endif()
 
 add_subdirectory(src/core)

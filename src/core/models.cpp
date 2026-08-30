@@ -20,6 +20,10 @@ constexpr const char *kSherpaSegmentation =
 // produces a 404.
 constexpr const char *kSherpaSpeaker =
     "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-recongition-models/";
+constexpr const char *kSherpaSeparation =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/source-separation-models/";
+constexpr const char *kSherpaAsr =
+    "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/";
 
 ModelSpec whisper_model(const std::string &name, std::int64_t bytes,
                         const std::string &description) {
@@ -196,6 +200,60 @@ bool extract_member(const fs::path &tar, const fs::path &archive, const std::str
     return true;
 }
 
+bool extract_directory(const fs::path &tar, const fs::path &archive, const fs::path &dest,
+                       std::string *error) {
+    std::error_code ec;
+    fs::path staging = archive.parent_path() / (archive.stem().string() + ".extract");
+    fs::remove_all(staging, ec);
+    fs::create_directories(staging, ec);
+
+    std::string out;
+    int code = 1;
+    if (!run_process(tar, {"-xf", archive.string(), "-C", staging.string()}, &out, &code,
+                     error)) {
+        return false;
+    }
+    if (code != 0) {
+        if (error) {
+            *error = "cannot extract " + archive.filename().string() + ": " + trim(out);
+        }
+        fs::remove_all(staging, ec);
+        return false;
+    }
+
+    // These archives hold a single top-level directory. Promoting its contents
+    // keeps the on-disk name stable regardless of what upstream called the
+    // folder inside the tarball.
+    fs::path root = staging;
+    int entries = 0;
+    fs::path only;
+    for (const auto &entry : fs::directory_iterator(staging, ec)) {
+        ++entries;
+        only = entry.path();
+    }
+    if (entries == 1 && fs::is_directory(only, ec)) {
+        root = only;
+    }
+
+    fs::remove_all(dest, ec);
+    fs::create_directories(dest.parent_path(), ec);
+    fs::rename(root, dest, ec);
+    if (ec) {
+        ec.clear();
+        fs::copy(root, dest, fs::copy_options::recursive, ec);
+        if (ec) {
+            if (error) {
+                *error = "cannot place extracted model at " + dest.string() + ": " +
+                         ec.message();
+            }
+            return false;
+        }
+    }
+    fs::remove_all(staging, ec);
+    fs::remove(archive, ec);
+    return true;
+}
+
 }  // namespace
 
 const std::vector<ModelSpec> &model_catalogue() {
@@ -233,6 +291,39 @@ const std::vector<ModelSpec> &model_catalogue() {
         v.push_back(speaker_model("3dspeaker-eres2netv2",
                                   "3dspeaker_speech_eres2netv2_sv_zh-cn_16k-common.onnx",
                                   68'000'000, "Mandarin voiceprints"));
+
+        ModelSpec uvr;
+        uvr.name = "uvr-mdxnet";
+        uvr.kind = ModelKind::Separation;
+        uvr.url = std::string(kSherpaSeparation) + "UVR_MDXNET_Main.onnx";
+        uvr.filename = "UVR_MDXNET_Main.onnx";
+        uvr.description = "Vocal isolation, strips music and background";
+        uvr.approx_bytes = 66'759'516;
+        v.push_back(uvr);
+
+        ModelSpec parakeet;
+        parakeet.name = "parakeet-tdt-0.6b-v3";
+        parakeet.kind = ModelKind::Parakeet;
+        parakeet.url =
+            std::string(kSherpaAsr) + "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2";
+        parakeet.filename = "parakeet-tdt-0.6b-v3";
+        parakeet.archive = true;
+        parakeet.extract_dir = true;
+        parakeet.description = "English and European, faster and more accurate than Whisper";
+        parakeet.approx_bytes = 660'000'000;
+        v.push_back(parakeet);
+
+        // Parakeet decodes one utterance at a time, so a long recording has to
+        // be cut into speech segments first. Whisper does its own windowing and
+        // does not need this.
+        ModelSpec vad;
+        vad.name = "silero-vad";
+        vad.kind = ModelKind::Vad;
+        vad.url = std::string(kSherpaAsr) + "silero_vad.onnx";
+        vad.filename = "silero_vad.onnx";
+        vad.description = "Voice activity detection, used to chunk audio for Parakeet";
+        vad.approx_bytes = 2'200'000;
+        v.push_back(vad);
 
         return v;
     }();
@@ -292,7 +383,11 @@ bool resolve_model(const std::string &name, ModelKind kind, const fs::path &mode
             }
             return false;
         }
-        if (!extract_member(tar, archive, spec->member, target, error)) {
+        if (spec->extract_dir) {
+            if (!extract_directory(tar, archive, target, error)) {
+                return false;
+            }
+        } else if (!extract_member(tar, archive, spec->member, target, error)) {
             return false;
         }
     } else if (!download(curl, spec->url, target, spec->name, progress, error)) {

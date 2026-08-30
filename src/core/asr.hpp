@@ -27,6 +27,13 @@ public:
     static std::unique_ptr<Transcriber> create(const Config &cfg, const fs::path &model_file,
                                                std::string *error);
 
+    /// Parakeet is a transducer, so it needs the unpacked model directory and a
+    /// VAD to cut the recording into utterances. Whisper does its own windowing.
+    static std::unique_ptr<Transcriber> create_parakeet(const Config &cfg,
+                                                        const fs::path &model_dir,
+                                                        const fs::path &vad_model,
+                                                        std::string *error);
+
     struct Result {
         std::vector<Segment> segments;
         std::string language;
@@ -46,6 +53,12 @@ public:
 
 private:
     Transcriber();
+
+    bool transcribe_parakeet(const std::vector<float> &samples,
+                             const std::function<void(const Segment &)> &on_segment,
+                             const std::function<void(double)> &on_progress,
+                             const CancelToken &cancel, Result *result, std::string *error);
+
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

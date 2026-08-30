@@ -55,7 +55,7 @@ struct Config {
 
     // -- source separation --------------------------------------------------
     IsolateMode isolate = IsolateMode::Auto;
-    std::string isolate_model = "uvr";
+    std::string isolate_model = "uvr-mdxnet";
     /// Noise-floor ratio above which Auto decides a file needs isolating.
     float isolate_auto_threshold = 0.28f;
 

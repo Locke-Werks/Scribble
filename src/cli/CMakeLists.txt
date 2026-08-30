@@ -15,3 +15,4 @@ if(WIN32)
         SCRIBE_RC_ORIGINAL_NAME="scribe.exe"
     )
 endif()
+

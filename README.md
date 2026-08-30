@@ -44,6 +44,12 @@ itself.
 `curl` and `tar` are used to fetch models and both ship with Windows 11, so
 there is nothing else to install.
 
+Whisper reaches the GPU through cuBLAS and needs nothing extra. Diarization,
+voiceprints, isolation and Parakeet run on onnxruntime, whose CUDA provider
+additionally needs **cuDNN 9**, a separate NVIDIA download. Without it those
+stages run on CPU, which is announced at startup rather than failing. Whisper
+transcription is unaffected either way.
+
 ## Building
 
 ```powershell
@@ -97,6 +103,7 @@ hotwords          = ["Kubernetes", "Grafana", "Thorvaldsen"]
 match_threshold   = 0.65
 review_threshold  = 0.50
 diarize           = true
+isolate           = "auto"
 ```
 
 `hotwords` is the cheapest accuracy gain available. Whisper has no hotword
@@ -111,12 +118,33 @@ Ranked by how much they actually move word error rate:
    free perfect diarization and better transcription. ScribeEveryone detects
    them and transcribes each track separately, unless the channels turn out to
    be one mono source duplicated.
-2. **`hotwords`**, as above.
-3. **`condition_on_previous_text = false`**, the default. Carrying context
+2. **`isolate = "auto"`.** Strips music and background with a UVR model before
+   transcription. The largest single gain on broadcast, field and music-bedded
+   audio, and a small loss on clean speech, so `auto` measures the noise floor
+   and only runs it where it will help. Isolation happens before the 16 kHz
+   downmix, because the model works at its own rate on stereo.
+3. **`hotwords`**, as above.
+4. **`condition_on_previous_text = false`**, the default. Carrying context
    between windows means one hallucinated loop propagates through the rest of a
    long recording. The trade is a little less cross-window consistency.
-4. **`large-v3`** is the right default. `large-v3-turbo` is several times
+5. **`large-v3`** is the right default. `large-v3-turbo` is several times
    faster at close to the same accuracy if throughput matters more.
+
+### Parakeet
+
+```powershell
+scribe run D:\recordings --backend parakeet
+```
+
+NVIDIA Parakeet TDT 0.6B v3 beats Whisper on the Open ASR Leaderboard for
+English and European languages and is considerably faster, given cuDNN. It is a
+transducer rather than an encoder-decoder, so it has no windowing of its own:
+audio is cut into utterances with silero VAD first, and each chunk is padded
+before decoding because a VAD trims to confident speech and would otherwise
+clip the first and last word of every segment.
+
+Whisper remains the default. It is more robust on poor audio and covers far
+more languages.
 
 ## Better diarization
 

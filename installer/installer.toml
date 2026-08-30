@@ -1,0 +1,71 @@
+[product]
+name         = "ScribeEveryone"
+version      = "0.1.0"
+publisher    = "Locke Werks"
+description  = "Batch transcription with diarization and corpus-wide speaker identity"
+copyright    = "Locke Werks. Licensed under the GNU GPL v3."
+url          = "https://github.com/Locke-Werks/ScribeEveryone"
+icon         = "../assets/scribeeveryone.ico"
+upgrade_code = "7f3c1b4a-2d58-4e91-9a06-c5b8e2f74d13"
+aumid        = "LockeWerks.ScribeEveryone"
+
+[install]
+scope     = "machine"
+dir       = "{ProgramFiles}\\Locke Werks\\ScribeEveryone"
+elevation = "required"
+
+[ui]
+warning = "Models are downloaded on first use and need roughly 4 GB of disk. They go to your local app data, not to the install directory."
+
+[[preflight]]
+type = "os_build"
+min  = 22000
+fail = "ScribeEveryone requires Windows 11."
+
+[[preflight]]
+type  = "free_disk_space"
+bytes = 2500000000
+fail  = "Needs about 2.5 GB free for the program and its CUDA runtime."
+
+[[preflight]]
+type  = "min_ram"
+bytes = 8000000000
+fail  = "Needs at least 8 GB of RAM."
+
+[[preflight]]
+type            = "process_not_running"
+name            = "ScribeEveryone.exe"
+restart_manager = true
+fail            = "ScribeEveryone is running. Close it and try again."
+
+[[options]]
+id      = "desktop_shortcut"
+label   = "Add a desktop shortcut"
+detail  = "Places ScribeEveryone on the desktop for everyone who uses this machine."
+default = false
+
+[[options]]
+id      = "add_to_path"
+label   = "Add the scribe command to PATH"
+detail  = "Lets you run transcriptions from a terminal without typing the full install path."
+default = true
+
+[[actions]]
+type   = "shortcut"
+target = "{InstallDir}\\ScribeEveryone.exe"
+name   = "ScribeEveryone"
+
+[[actions]]
+type   = "shortcut"
+target = "{InstallDir}\\ScribeEveryone.exe"
+where  = "desktop"
+name   = "ScribeEveryone"
+when   = "desktop_shortcut"
+
+[[actions]]
+type  = "path_append"
+value = "{InstallDir}"
+when  = "add_to_path"
+
+[[actions]]
+type = "arp"
