@@ -31,8 +31,8 @@ their name. No enrollment step, no sitting there recording reference clips of
 your coworkers like a weirdo. The corpus enrols itself.
 
 **Start here: [docs/usage.md](docs/usage.md).** It explains what the four
-intimidating toolbar buttons do, in the order you'll need them. It exists
-because the person who designed this app couldn't remember what Recluster did.
+intimidating toolbar buttons do, in the order you'll need them. It exists because I
+built this and still could not remember what Recluster did.
 
 ## What it does
 
@@ -178,8 +178,8 @@ Ryzen 9 7950X, RTX 4090, 5.5 minutes of audio:
 Yes, the middle row says the CPU beat a 4090. That's a 16 core part, and those
 models are small ones run over hundreds of short windows, so launch overhead
 dominates and a big CPU eats it alive. On a four core laptop the GPU wins that
-row comfortably. Which is why `auto` counts your cores rather than treating one
-guy's benchmark as scripture. Override with `onnx_accel = "cuda"` or `"cpu"`.
+row comfortably. Which is why `auto` counts your cores rather than treating my own
+benchmark as scripture. Override with `onnx_accel = "cuda"` or `"cpu"`.
 
 ## Better diarization, if you're feeling ambitious
 

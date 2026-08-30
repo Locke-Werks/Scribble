@@ -38,7 +38,7 @@ Go outside. It'll still be going.
 
 # The traps
 
-Everything below is something that already ate somebody's afternoon. Reading it
+Everything below already ate an afternoon of mine. Reading it
 costs five minutes. Rediscovering it costs considerably more.
 
 ## Do not put project settings at the top level
@@ -122,7 +122,7 @@ on a machine that has none of its dependencies. Then onnxruntime loads it for
 real, the dependency chain fails, and sherpa-onnx **aborts the entire process**
 instead of falling back to CPU like a reasonable library.
 
-That killed 42 of 43 files in a real batch. Every one of them reported the same
+That killed 42 of 43 files in a batch of mine. Every one of them reported the same
 useless error. `onnx_cuda_available()` in `paths.cpp` now does a real
 `LoadLibraryW`, which resolves the whole chain and answers the only question
 that was ever worth asking: is this actually going to work.
@@ -158,10 +158,10 @@ Models download into `%LOCALAPPDATA%\ScribeEveryone\models`. Not next to the
 exe.
 
 An install under Program Files is read-only. The database, the scratch
-directory, all of it goes per-user. This was learned by shipping an installer
-whose first launch immediately failed to create its own database, because the
-Start Menu shortcut sets the working directory to the install directory and the
-default paths were relative. The window came up completely empty behind an error
+directory, all of it goes per-user. I learned this by shipping an installer whose
+first launch immediately failed to create its own database, because the Start
+Menu shortcut sets the working directory to the install directory and my default
+paths were relative. The window came up completely empty behind an error
 box. Very polished. Unset paths in `Config` now resolve to per-user locations; a
 path you explicitly set resolves against the working directory.
 
@@ -180,9 +180,8 @@ Stages the payload, signs it, forges `build\ScribeEveryone-Setup.exe`.
 **The script signs the payload before forging, and that ordering is the whole
 point.** Payload members get extracted verbatim, so anything unsigned going in
 stays unsigned on disk no matter how beautifully the installer itself is signed.
-The script used to just print a warning about it. Warnings are things you scroll
-past, which is how a signed installer shipped wrapping an entirely unsigned
-payload. Now it signs them. The stub gets signed too, because the uninstaller is
+The script used to just print a warning about it. Warnings are things you scroll past,
+which is how I shipped a signed installer wrapping an entirely unsigned payload. Now it signs them. The stub gets signed too, because the uninstaller is
 extracted out of it at install time.
 
 Third-party binaries are left alone. ffmpeg ships unsigned rather than wearing
@@ -202,5 +201,5 @@ provider is 300 MB of dead weight without it.
 `scripts/package.ps1` passes repository-relative paths to `lwforge` on purpose.
 Forge's `long_path()` slaps `\\?\` on absolute paths, which disables Win32 path
 normalisation, so an absolute `--config` makes it resolve `product.icon` to a
-path still containing `..` and fail with `0x7b`. That one's a Forge bug and it's
-written up here so the next person doesn't spend an hour on it.
+path still containing `..` and fail with `0x7b`. That is a Forge bug, written up
+here so I do not lose another hour to it.

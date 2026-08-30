@@ -2,7 +2,7 @@
 
 You pointed it at a folder. It chewed through 200 files. Now there are 47 people
 called `SPEAKER_0031` and you are staring at a toolbar with four buttons whose
-names meant something to whoever wrote them.
+names made sense to me at the time.
 
 Cool. Let's fix that.
 

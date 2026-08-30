@@ -119,7 +119,7 @@ cluster_threshold = 0.65
 #
 # An ordinary stereo mix is NOT that. Both channels carry the same sources, and
 # splitting one buys you two half transcripts of one conversation at double the
-# processing time. This shipped on by default exactly once. Never again.
+# processing time. I shipped this on by default exactly once. Never again.
 split_channels       = false
 max_split_channels   = 8
 # How unlike each other two channels must be to count as separate microphones.
