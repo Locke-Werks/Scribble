@@ -104,14 +104,35 @@ is 442 MB.
 
 Two things are deliberately left out:
 
-- **onnxruntime's CUDA provider**, 313 MB. It cannot load without cuDNN, and
-  NVIDIA's licence does not permit redistributing that, so it would fail to
-  initialise on every machine that did not already have cuDNN.
-- **cuDNN itself**, for the same licensing reason.
+- **onnxruntime's CUDA provider**, and **cuDNN**, and **cuFFT**. These are
+  fetched at runtime instead, from NVIDIA's public redistributable index and
+  Microsoft's releases, because cuDNN cannot be redistributed under NVIDIA's
+  licence and the provider is useless without it. `scribe gpu install` pulls
+  all three, about 1.2 GB, into `%LOCALAPPDATA%\ScribeEveryone\runtime`.
 
-Whisper is unaffected by both, so GPU transcription works out of the box.
-Diarization, voiceprints, isolation and Parakeet run on CPU unless the user
-installs cuDNN, which `paths.cpp` probes for at startup.
+Whisper is unaffected, so GPU transcription works out of the box. Diarization,
+voiceprints and isolation run on CPU until that runtime is installed, which
+`paths.cpp` probes for at startup.
+
+## onnxruntime is repointed at CUDA 13
+
+`cmake/patch_sherpa_ort.cmake` rewrites sherpa-onnx's pinned onnxruntime
+archive from the CUDA 12 build to the CUDA 13 build of the same version.
+
+sherpa-onnx hardcodes CUDA 12, whose provider imports `cublas64_12` and
+`cudart64_12`. whisper.cpp is on CUDA 13. Accepting both would mean shipping
+two complete CUDA runtimes side by side, several hundred megabytes of duplicate
+BLAS. The CUDA 13 build imports `cublas64_13` and `cudart64_13`, which already
+ship for whisper, leaving only cuDNN and cuFFT to obtain.
+
+It runs as a `PATCH_COMMAND`, so it re-applies whenever the pinned sherpa-onnx
+tag moves, and fails the build loudly if upstream changes onnxruntime version
+rather than silently reverting to CUDA 12. When that happens, check that the
+new CUDA 13 build still imports `cublas64_13`:
+
+```powershell
+dumpbin /dependents build\bin\Release\onnxruntime_providers_cuda.dll
+```
 
 `scripts/package.ps1` passes repository-relative paths to `lwforge` on purpose.
 Forge's `long_path()` adds the `\\?\` prefix to absolute paths, which disables

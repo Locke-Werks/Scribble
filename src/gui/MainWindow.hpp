@@ -11,6 +11,7 @@
 #include "types.hpp"
 
 class QAction;
+class QFrame;
 class QLabel;
 class QProgressBar;
 class QSplitter;
@@ -50,6 +51,7 @@ private slots:
     void openOutputFolder();
     void reviewDuplicates();
     void onSpeakersChanged();
+    void startRun();
 
 private:
     /// Live transcript state for a file, held so switching back to a file that is
@@ -68,6 +70,9 @@ private:
     void refreshSpeakerNames();
     QVector<scribe::Segment> segmentsForFile(std::int64_t fileId);
     std::shared_ptr<FileBuffer> bufferFor(std::int64_t fileId, bool create);
+
+    void openGpuRuntime(bool autoInstall);
+    void maybeOfferGpuRuntime();
 
     void handleSegment(const scribe::EvSegment &ev);
     void handleLabelled(const scribe::EvSegmentsLabelled &ev);
@@ -97,6 +102,11 @@ private:
     QAction *rerenderAct_ = nullptr;
     QAction *settingsAct_ = nullptr;
     QAction *openOutputAct_ = nullptr;
+    QAction *gpuRuntimeAct_ = nullptr;
+
+    QFrame *gpuInfoBar_ = nullptr;
+    QLabel *gpuInfoLabel_ = nullptr;
+    bool gpuOfferChecked_ = false;
 
     QHash<std::int64_t, std::shared_ptr<FileBuffer>> buffers_;
     QHash<std::int64_t, QString> speakerNames_;

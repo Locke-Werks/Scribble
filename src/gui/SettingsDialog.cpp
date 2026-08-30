@@ -225,6 +225,16 @@ QWidget *SettingsDialog::buildTranscriptionTab() {
         QStringLiteral("When to run the source-separation front end. Isolation is the largest "
                        "single accuracy win on broadcast, field and music-bedded audio, and a "
                        "small loss on already-clean speech, so it is gated rather than always on."));
+    isolateAccel_ = new QComboBox(isolationBox);
+    isolateAccel_->addItems(
+        {QStringLiteral("Auto"), QStringLiteral("CPU"), QStringLiteral("CUDA")});
+    isolateAccel_->setCurrentIndex(static_cast<int>(base_.isolate_accel));
+    isolateAccel_->setToolTip(
+        QStringLiteral("Accelerator for vocal isolation. This is one large model over the whole "
+                       "recording and it is the stage where the GPU wins regardless of the CPU: "
+                       "on a 16-core Ryzen 9 7950X with an RTX 4090, isolation took 38s against "
+                       "113s on CPU. Auto is the default and recommended. CUDA needs the "
+                       "downloadable GPU runtime (Tools > GPU acceleration)."));
     isolateModel_ = new QLineEdit(QString::fromStdString(base_.isolate_model), isolationBox);
     isolateThreshold_ = new QDoubleSpinBox(isolationBox);
     isolateThreshold_->setRange(0.0, 1.0);
@@ -233,6 +243,7 @@ QWidget *SettingsDialog::buildTranscriptionTab() {
     isolateThreshold_->setToolTip(
         QStringLiteral("Noise-floor ratio above which Auto decides a file needs isolating."));
     isoForm->addRow(QStringLiteral("Mode"), isolate_);
+    isoForm->addRow(QStringLiteral("Accelerator"), isolateAccel_);
     isoForm->addRow(QStringLiteral("Model"), isolateModel_);
     isoForm->addRow(QStringLiteral("Auto threshold"), isolateThreshold_);
     form->addRow(isolationBox);
@@ -251,8 +262,23 @@ QWidget *SettingsDialog::buildDiarizationTab() {
     onnxAccel_->addItems({QStringLiteral("Auto"), QStringLiteral("CPU"), QStringLiteral("CUDA")});
     onnxAccel_->setCurrentIndex(static_cast<int>(base_.onnx_accel));
     onnxAccel_->setToolTip(
-        QStringLiteral("Where the ONNX diarization models run. CPU is often the right call while "
-                       "the GPU stays saturated with Whisper."));
+        QStringLiteral("Accelerator for diarization and voiceprints. Auto is the default and the "
+                       "recommended setting: these small models run over many short windows and "
+                       "are bound by per-launch overhead, so the best choice depends on the CPU "
+                       "present. GPU acceleration helps most on machines without a lot of cores; "
+                       "Auto decides per stage from the hardware it finds. CUDA needs the "
+                       "downloadable GPU runtime (Tools > GPU acceleration)."));
+
+    gpuRuntime_ = new QComboBox(tab);
+    gpuRuntime_->addItems(
+        {QStringLiteral("Prompt"), QStringLiteral("Auto"), QStringLiteral("Never")});
+    gpuRuntime_->setCurrentIndex(static_cast<int>(base_.gpu_runtime));
+    gpuRuntime_->setToolTip(
+        QStringLiteral("Diarization, voiceprints, isolation and Parakeet reach the GPU through "
+                       "onnxruntime, which needs cuDNN. NVIDIA's licence does not allow shipping "
+                       "it, so it is fetched on request (about 1.2 GB). Prompt asks before "
+                       "downloading and runs on CPU if declined; Auto downloads without asking; "
+                       "Never stays on CPU. Whisper is unaffected either way."));
 
     segmentationModel_ = new QLineEdit(QString::fromStdString(base_.segmentation_model), tab);
     embeddingModel_ = new QLineEdit(QString::fromStdString(base_.embedding_model), tab);
@@ -279,7 +305,8 @@ QWidget *SettingsDialog::buildDiarizationTab() {
     diarClusterThreshold_->setValue(base_.diar_cluster_threshold);
 
     form->addRow(QString(), diarize_);
-    form->addRow(QStringLiteral("Acceleration"), onnxAccel_);
+    form->addRow(QStringLiteral("Accelerator"), onnxAccel_);
+    form->addRow(QStringLiteral("GPU runtime download"), gpuRuntime_);
     form->addRow(QStringLiteral("Segmentation model"), segmentationModel_);
     form->addRow(QStringLiteral("Embedding model"), embeddingModel_);
     form->addRow(QStringLiteral("Speakers"), numSpeakers_);
@@ -432,11 +459,13 @@ scribe::Config SettingsDialog::config() const {
     c.hotwords = splitLines(hotwords_->toPlainText());
     c.initial_prompt = initialPrompt_->toPlainText().toStdString();
     c.isolate = static_cast<scribe::IsolateMode>(isolate_->currentIndex());
+    c.isolate_accel = static_cast<scribe::Accel>(isolateAccel_->currentIndex());
     c.isolate_model = isolateModel_->text().toStdString();
     c.isolate_auto_threshold = static_cast<float>(isolateThreshold_->value());
 
     c.diarize = diarize_->isChecked();
     c.onnx_accel = static_cast<scribe::Accel>(onnxAccel_->currentIndex());
+    c.gpu_runtime = static_cast<scribe::GpuRuntimeMode>(gpuRuntime_->currentIndex());
     c.segmentation_model = segmentationModel_->text().toStdString();
     c.embedding_model = embeddingModel_->text().toStdString();
     c.num_speakers = numSpeakers_->value();

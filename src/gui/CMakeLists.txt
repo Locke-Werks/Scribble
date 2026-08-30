@@ -15,6 +15,7 @@ set(GUI_SOURCES
     SpeakerPanel.cpp
     DuplicatesDialog.cpp
     SettingsDialog.cpp
+    GpuRuntimeDialog.cpp
     LogDock.cpp
     SpeakerPalette.cpp
 )
@@ -33,6 +34,7 @@ set(GUI_HEADERS
     SpeakerPanel.hpp
     DuplicatesDialog.hpp
     SettingsDialog.hpp
+    GpuRuntimeDialog.hpp
     LogDock.hpp
     SpeakerPalette.hpp
     GuiEventSink.hpp

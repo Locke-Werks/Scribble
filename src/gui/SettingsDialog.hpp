@@ -60,12 +60,14 @@ private:
     QPlainTextEdit *hotwords_ = nullptr;
     QPlainTextEdit *initialPrompt_ = nullptr;
     QComboBox *isolate_ = nullptr;
+    QComboBox *isolateAccel_ = nullptr;
     QLineEdit *isolateModel_ = nullptr;
     QDoubleSpinBox *isolateThreshold_ = nullptr;
 
     // Diarization
     QCheckBox *diarize_ = nullptr;
     QComboBox *onnxAccel_ = nullptr;
+    QComboBox *gpuRuntime_ = nullptr;
     QLineEdit *segmentationModel_ = nullptr;
     QLineEdit *embeddingModel_ = nullptr;
     QSpinBox *numSpeakers_ = nullptr;

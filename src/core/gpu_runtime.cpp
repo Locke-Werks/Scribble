@@ -232,7 +232,7 @@ const std::vector<GpuComponent> &gpu_components() {
 
 std::string GpuRuntimeStatus::summary() const {
     if (ready) {
-        return "GPU acceleration for diarization, voiceprints and Parakeet is ready.";
+        return "GPU acceleration for isolation, diarization and voiceprints is ready.";
     }
     std::vector<std::string> names;
     for (const auto &c : missing) {

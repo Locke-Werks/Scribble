@@ -21,11 +21,14 @@ QString formatBytes(std::int64_t bytes) {
     if (bytes <= 0) {
         return QStringLiteral("--");
     }
+    // Decimal units, not binary. These are download sizes, and NVIDIA, GitHub
+    // and curl all quote them decimally, so binary units here would disagree
+    // with both the core summary line and everything the user sees elsewhere.
     const char *units[] = {"B", "KB", "MB", "GB", "TB"};
     double v = static_cast<double>(bytes);
     int u = 0;
-    while (v >= 1024.0 && u < 4) {
-        v /= 1024.0;
+    while (v >= 1000.0 && u < 4) {
+        v /= 1000.0;
         ++u;
     }
     if (u == 0) {

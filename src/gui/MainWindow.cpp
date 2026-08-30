@@ -8,6 +8,8 @@
 #include <QDropEvent>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFrame>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
@@ -15,6 +17,7 @@
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProgressBar>
+#include <QPushButton>
 #include <QSet>
 #include <QSettings>
 #include <QSplitter>
@@ -22,11 +25,13 @@
 #include <QTableView>
 #include <QToolBar>
 #include <QUrl>
+#include <QVBoxLayout>
 
 #include <algorithm>
 #include <cmath>
 
 #include "DuplicatesDialog.hpp"
+#include "GpuRuntimeDialog.hpp"
 #include "LogDock.hpp"
 #include "PipelineController.hpp"
 #include "ProgressDelegate.hpp"
@@ -36,6 +41,7 @@
 #include "TranscriptView.hpp"
 #include "config.hpp"
 #include "db.hpp"
+#include "gpu_runtime.hpp"
 
 namespace scribe::gui {
 
@@ -143,7 +149,41 @@ void MainWindow::buildUi() {
     splitter_->setStretchFactor(1, 45);
     splitter_->setStretchFactor(2, 25);
     splitter_->setSizes({300, 450, 250});
-    setCentralWidget(splitter_);
+
+    // A dismissable bar above the panes carries the one-time GPU acceleration
+    // offer, so the prompt never steals focus from a run the user just started.
+    auto *central = new QWidget(this);
+    auto *centralLayout = new QVBoxLayout(central);
+    centralLayout->setContentsMargins(0, 0, 0, 0);
+    centralLayout->setSpacing(0);
+
+    gpuInfoBar_ = new QFrame(central);
+    gpuInfoBar_->setFrameShape(QFrame::StyledPanel);
+    gpuInfoBar_->setAutoFillBackground(true);
+    gpuInfoBar_->setVisible(false);
+    auto *barLayout = new QHBoxLayout(gpuInfoBar_);
+    barLayout->setContentsMargins(8, 4, 8, 4);
+    gpuInfoLabel_ = new QLabel(gpuInfoBar_);
+    gpuInfoLabel_->setWordWrap(true);
+    barLayout->addWidget(gpuInfoLabel_, 1);
+    auto *installBtn = new QPushButton(QStringLiteral("Install GPU acceleration"), gpuInfoBar_);
+    auto *dismissBtn = new QPushButton(QStringLiteral("Not now"), gpuInfoBar_);
+    barLayout->addWidget(installBtn);
+    barLayout->addWidget(dismissBtn);
+    connect(installBtn, &QPushButton::clicked, this, [this] {
+        gpuInfoBar_->setVisible(false);
+        openGpuRuntime(true);
+    });
+    connect(dismissBtn, &QPushButton::clicked, this, [this] {
+        gpuInfoBar_->setVisible(false);
+        // Remember the refusal so the bar is offered once, not on every launch.
+        QSettings settings;
+        settings.setValue(QStringLiteral("gpu/declined"), true);
+    });
+
+    centralLayout->addWidget(gpuInfoBar_);
+    centralLayout->addWidget(splitter_, 1);
+    setCentralWidget(central);
 
     logDock_ = new LogDock(this);
     addDockWidget(Qt::BottomDockWidgetArea, logDock_);
@@ -189,7 +229,7 @@ void MainWindow::buildActions() {
 
     connect(addFilesAct_, &QAction::triggered, this, &MainWindow::addFiles);
     connect(addFolderAct_, &QAction::triggered, this, &MainWindow::addFolder);
-    connect(startAct_, &QAction::triggered, controller_, &PipelineController::start);
+    connect(startAct_, &QAction::triggered, this, &MainWindow::startRun);
     connect(pauseAct_, &QAction::toggled, controller_, &PipelineController::pause);
     connect(stopAct_, &QAction::triggered, controller_, &PipelineController::stop);
     connect(reclusterAct_, &QAction::triggered, controller_, &PipelineController::recluster);
@@ -234,6 +274,9 @@ void MainWindow::buildActions() {
     toolsMenu->addAction(settingsAct_);
     auto *reviewAct = toolsMenu->addAction(QStringLiteral("Review Duplicates"));
     connect(reviewAct, &QAction::triggered, this, &MainWindow::reviewDuplicates);
+    toolsMenu->addSeparator();
+    gpuRuntimeAct_ = toolsMenu->addAction(QStringLiteral("GPU acceleration..."));
+    connect(gpuRuntimeAct_, &QAction::triggered, this, [this] { openGpuRuntime(false); });
 
     auto *viewMenu = menuBar()->addMenu(QStringLiteral("View"));
     viewMenu->addAction(logDock_->toggleViewAction());
@@ -326,6 +369,64 @@ void MainWindow::openSettings() {
 void MainWindow::openOutputFolder() {
     const QString dir = QString::fromStdWString(controller_->config().out_dir.wstring());
     QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+}
+
+void MainWindow::startRun() {
+    // Offer the GPU runtime before the batch begins so the download can run
+    // alongside it and be ready for the next file or the next run.
+    maybeOfferGpuRuntime();
+    controller_->start();
+}
+
+void MainWindow::openGpuRuntime(bool autoInstall) {
+    // Non-modal so a running batch keeps going and the window stays responsive
+    // while roughly a gigabyte downloads on the dialog's own worker thread.
+    auto *dialog = new GpuRuntimeDialog(this);
+    dialog->setAttribute(Qt::WA_DeleteOnClose);
+    if (autoInstall) {
+        dialog->beginInstallOnShow();
+    }
+    dialog->show();
+    dialog->raise();
+    dialog->activateWindow();
+}
+
+void MainWindow::maybeOfferGpuRuntime() {
+    if (gpuOfferChecked_) {
+        return;
+    }
+    gpuOfferChecked_ = true;
+
+    const scribe::Config &cfg = controller_->config();
+    if (cfg.gpu_runtime == scribe::GpuRuntimeMode::Never) {
+        return;
+    }
+    // Isolation is the stage that benefits from the GPU regardless of the CPU,
+    // so a run that will not isolate anything is not a reliable reason to offer.
+    if (cfg.isolate == scribe::IsolateMode::Never) {
+        return;
+    }
+
+    const scribe::GpuRuntimeStatus status = scribe::gpu_runtime_status();
+    if (status.ready) {
+        return;
+    }
+
+    if (cfg.gpu_runtime == scribe::GpuRuntimeMode::Auto) {
+        openGpuRuntime(true);
+        return;
+    }
+
+    // Prompt mode. A prior refusal is remembered across launches.
+    QSettings settings;
+    if (settings.value(QStringLiteral("gpu/declined"), false).toBool()) {
+        return;
+    }
+    gpuInfoLabel_->setText(
+        QStringLiteral("%1 On a 16-core Ryzen 9 7950X with an RTX 4090, vocal isolation took 38s "
+                       "against 113s on CPU.")
+            .arg(QString::fromStdString(status.summary())));
+    gpuInfoBar_->setVisible(true);
 }
 
 void MainWindow::reviewDuplicates() {
