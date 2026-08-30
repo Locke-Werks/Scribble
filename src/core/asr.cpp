@@ -9,7 +9,7 @@
 #include "util.hpp"
 #include "whisper.h"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 namespace sx = sherpa_onnx::cxx;
@@ -585,4 +585,4 @@ bool Transcriber::transcribe(const std::vector<float> &samples,
     return true;
 }
 
-}  // namespace scribe
+}  // namespace scribble

@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 // Pinned deliberately. onnxruntime's CUDA provider must match the
@@ -349,4 +349,4 @@ bool install_gpu_runtime(const GpuRuntimeStatus &status, const GpuProgress &prog
     return true;
 }
 
-}  // namespace scribe
+}  // namespace scribble

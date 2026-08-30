@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 /// A word with its own timing, from Whisper's cross-attention DTW.
 struct Word {
@@ -101,4 +101,4 @@ enum class LogLevel { Debug, Info, Warn, Error };
 
 const char *log_level_name(LogLevel l);
 
-}  // namespace scribe
+}  // namespace scribble

@@ -20,16 +20,16 @@
 #include <string>
 #include <vector>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
-QString toQString(const scribe::fs::path &p) {
+QString toQString(const scribble::fs::path &p) {
     return QString::fromStdWString(p.wstring());
 }
 
-scribe::fs::path toPath(const QString &s) {
-    return scribe::fs::path(s.toStdWString());
+scribble::fs::path toPath(const QString &s) {
+    return scribble::fs::path(s.toStdWString());
 }
 
 QString joinLines(const std::vector<std::string> &values) {
@@ -58,7 +58,7 @@ const QStringList kKnownFormats = {QStringLiteral("srt"), QStringLiteral("vtt"),
 
 }  // namespace
 
-SettingsDialog::SettingsDialog(const scribe::Config &config, QWidget *parent)
+SettingsDialog::SettingsDialog(const scribble::Config &config, QWidget *parent)
     : QDialog(parent), base_(config) {
     setWindowTitle(QStringLiteral("Settings"));
     resize(620, 560);
@@ -110,7 +110,7 @@ QWidget *SettingsDialog::buildPathsTab() {
     dbPath_ = new QLineEdit(toQString(base_.db_path), tab);
     modelDir_ = new QLineEdit(toQString(base_.model_dir), tab);
     modelDir_->setToolTip(
-        QStringLiteral("Empty resolves to %LOCALAPPDATA%\\ScribeEveryone\\models."));
+        QStringLiteral("Empty resolves to %LOCALAPPDATA%\\Scribble\\models."));
     modelDir_->setPlaceholderText(QStringLiteral("Default model location"));
 
     mirrorTree_ = new QCheckBox(QStringLiteral("Reproduce the input folder structure under the "
@@ -440,8 +440,8 @@ QWidget *SettingsDialog::buildPerformanceTab() {
     return tab;
 }
 
-scribe::Config SettingsDialog::config() const {
-    scribe::Config c = base_;
+scribble::Config SettingsDialog::config() const {
+    scribble::Config c = base_;
 
     c.out_dir = toPath(outDir_->text());
     c.work_dir = toPath(workDir_->text());
@@ -450,9 +450,9 @@ scribe::Config SettingsDialog::config() const {
     c.mirror_tree = mirrorTree_->isChecked();
     c.keep_work = keepWork_->isChecked();
 
-    c.backend = static_cast<scribe::AsrBackend>(backend_->currentIndex());
+    c.backend = static_cast<scribble::AsrBackend>(backend_->currentIndex());
     c.model = model_->text().toStdString();
-    c.asr_accel = static_cast<scribe::Accel>(asrAccel_->currentIndex());
+    c.asr_accel = static_cast<scribble::Accel>(asrAccel_->currentIndex());
     c.language = language_->text().toStdString();
     c.translate = translate_->isChecked();
     c.beam_size = beamSize_->value();
@@ -465,14 +465,14 @@ scribe::Config SettingsDialog::config() const {
     c.suppress_non_speech = suppressNonSpeech_->isChecked();
     c.hotwords = splitLines(hotwords_->toPlainText());
     c.initial_prompt = initialPrompt_->toPlainText().toStdString();
-    c.isolate = static_cast<scribe::IsolateMode>(isolate_->currentIndex());
-    c.isolate_accel = static_cast<scribe::Accel>(isolateAccel_->currentIndex());
+    c.isolate = static_cast<scribble::IsolateMode>(isolate_->currentIndex());
+    c.isolate_accel = static_cast<scribble::Accel>(isolateAccel_->currentIndex());
     c.isolate_model = isolateModel_->text().toStdString();
     c.isolate_auto_threshold = static_cast<float>(isolateThreshold_->value());
 
     c.diarize = diarize_->isChecked();
-    c.onnx_accel = static_cast<scribe::Accel>(onnxAccel_->currentIndex());
-    c.gpu_runtime = static_cast<scribe::GpuRuntimeMode>(gpuRuntime_->currentIndex());
+    c.onnx_accel = static_cast<scribble::Accel>(onnxAccel_->currentIndex());
+    c.gpu_runtime = static_cast<scribble::GpuRuntimeMode>(gpuRuntime_->currentIndex());
     c.segmentation_model = segmentationModel_->text().toStdString();
     c.embedding_model = embeddingModel_->text().toStdString();
     c.num_speakers = numSpeakers_->value();
@@ -513,4 +513,4 @@ scribe::Config SettingsDialog::config() const {
     return c;
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

@@ -6,7 +6,7 @@
 
 #include "util.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 bool same_speaker(const Segment &a, const Segment &b) {
@@ -271,4 +271,4 @@ fs::path common_root(const std::vector<fs::path> &paths) {
     return root;
 }
 
-}  // namespace scribe
+}  // namespace scribble

@@ -8,7 +8,7 @@
 
 #include "QueueModel.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 void ProgressDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                              const QModelIndex &index) const {
@@ -67,4 +67,4 @@ void ProgressDelegate::paint(QPainter *painter, const QStyleOptionViewItem &opti
     painter->restore();
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

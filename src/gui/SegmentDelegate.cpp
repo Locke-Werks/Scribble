@@ -9,7 +9,7 @@
 #include "FormatUtil.hpp"
 #include "TranscriptModel.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 constexpr int kGutter = 96;   // timestamp column
@@ -125,4 +125,4 @@ void SegmentDelegate::setViewportWidth(int width) {
     viewportWidth_ = width;
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

@@ -42,32 +42,35 @@ set(GUI_HEADERS
     FormatUtil.hpp
 )
 
-qt_add_executable(ScribeEveryoneGui WIN32 ${GUI_SOURCES} ${GUI_HEADERS})
+qt_add_executable(ScribbleGui WIN32 ${GUI_SOURCES} ${GUI_HEADERS})
 
-set_target_properties(ScribeEveryoneGui PROPERTIES
-    OUTPUT_NAME ScribeEveryone
+set_target_properties(ScribbleGui PROPERTIES
+    # Not "Scribble", which would collide with the CLI. Windows filenames are
+    # case-insensitive, so scribble.exe and Scribble.exe are one file, and
+    # whichever target linked last silently won.
+    OUTPUT_NAME ScribbleDesktop
     WIN32_EXECUTABLE ON
 )
 
-target_include_directories(ScribeEveryoneGui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ScribbleGui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(ScribeEveryoneGui PRIVATE
-    scribe_core
-    scribe_flags
+target_link_libraries(ScribbleGui PRIVATE
+    scribble_core
+    scribble_flags
     Qt6::Widgets
     Qt6::Concurrent
     Qt6::Svg
 )
 
 if(WIN32)
-    target_sources(ScribeEveryoneGui PRIVATE ${CMAKE_SOURCE_DIR}/resources/scribe.rc)
-    target_include_directories(ScribeEveryoneGui PRIVATE ${CMAKE_SOURCE_DIR}/resources)
-    target_compile_definitions(ScribeEveryoneGui PRIVATE
-        SCRIBE_RC_VERSION=${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0
-        SCRIBE_RC_VERSION_STRING="${PROJECT_VERSION}"
-        SCRIBE_RC_DESCRIPTION="ScribeEveryone"
-        SCRIBE_RC_INTERNAL_NAME="ScribeEveryone"
-        SCRIBE_RC_ORIGINAL_NAME="ScribeEveryone.exe"
+    target_sources(ScribbleGui PRIVATE ${CMAKE_SOURCE_DIR}/resources/scribble.rc)
+    target_include_directories(ScribbleGui PRIVATE ${CMAKE_SOURCE_DIR}/resources)
+    target_compile_definitions(ScribbleGui PRIVATE
+        SCRIBBLE_RC_VERSION=${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0
+        SCRIBBLE_RC_VERSION_STRING="${PROJECT_VERSION}"
+        SCRIBBLE_RC_DESCRIPTION="Scribble"
+        SCRIBBLE_RC_INTERNAL_NAME="Scribble"
+        SCRIBBLE_RC_ORIGINAL_NAME="ScribbleDesktop.exe"
     )
 endif()
 
@@ -78,11 +81,11 @@ if(WIN32)
     get_filename_component(_qt_bin_dir "${_qmake_exe}" DIRECTORY)
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}")
     if(WINDEPLOYQT_EXECUTABLE)
-        add_custom_command(TARGET ScribeEveryoneGui POST_BUILD
+        add_custom_command(TARGET ScribbleGui POST_BUILD
             COMMAND "${WINDEPLOYQT_EXECUTABLE}"
                     --no-translations
                     --no-compiler-runtime
-                    "$<TARGET_FILE:ScribeEveryoneGui>"
+                    "$<TARGET_FILE:ScribbleGui>"
             COMMENT "Deploying Qt runtime with windeployqt"
             VERBATIM
         )

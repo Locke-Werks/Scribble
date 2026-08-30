@@ -11,7 +11,7 @@
 #include <shlobj.h>
 #endif
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 #ifdef _WIN32
@@ -88,21 +88,21 @@ fs::path app_data_dir() {
         const char *env = std::getenv("LOCALAPPDATA");
         base = env ? fs::path(env) : fs::current_path();
     }
-    return base / "ScribeEveryone";
+    return base / "Scribble";
 #else
     const char *xdg = std::getenv("XDG_DATA_HOME");
     if (xdg && *xdg) {
-        return fs::path(xdg) / "ScribeEveryone";
+        return fs::path(xdg) / "Scribble";
     }
     const char *home = std::getenv("HOME");
     fs::path base = home ? fs::path(home) / ".local" / "share" : fs::current_path();
-    return base / "ScribeEveryone";
+    return base / "Scribble";
 #endif
 }
 
 fs::path default_model_dir() { return app_data_dir() / "models"; }
 
-fs::path default_config_path() { return app_data_dir() / "scribe.toml"; }
+fs::path default_config_path() { return app_data_dir() / "scribble.toml"; }
 
 fs::path documents_dir() {
 #ifdef _WIN32
@@ -125,7 +125,7 @@ fs::path find_ffmpeg() { return search_path(kFfmpegName); }
 fs::path find_ffprobe() { return search_path(kFfprobeName); }
 
 bool onnx_cuda_available() {
-#if defined(_WIN32) && defined(SCRIBE_HAVE_CUDA)
+#if defined(_WIN32) && defined(SCRIBBLE_HAVE_CUDA)
     static const bool available = [] {
         // The downloaded runtime directory goes on the search path first,
         // otherwise a freshly installed cuDNN is invisible to this probe and
@@ -186,4 +186,4 @@ const char *onnx_large_model_provider(Accel requested) {
     return onnx_cuda_available() ? "cuda" : "cpu";
 }
 
-}  // namespace scribe
+}  // namespace scribble

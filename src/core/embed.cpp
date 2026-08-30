@@ -8,7 +8,7 @@
 #include "sherpa-onnx/c-api/cxx-api.h"
 #include "speakers.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 namespace sx = sherpa_onnx::cxx;
@@ -186,4 +186,4 @@ bool Embedder::build_voiceprints(const std::vector<float> &samples,
     return true;
 }
 
-}  // namespace scribe
+}  // namespace scribble

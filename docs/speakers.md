@@ -59,7 +59,7 @@ centroids everyone else got measured against. Nothing is technically wrong. It's
 just arbitrary, and arbitrary is a miserable property for something you might
 have to explain to somebody who matters.
 
-`scribe recluster` pulls every voiceprint, clusters them in one pass with
+`scribble recluster` pulls every voiceprint, clusters them in one pass with
 average-linkage agglomerative clustering under the same cannot-link rule, and
 rewrites the assignments.
 
@@ -86,9 +86,9 @@ both sound muffled. There is no number that gets both right. Not a tuning
 problem, a physics problem. Anybody who tells you otherwise is selling
 something.
 
-So `scribe dupes` lists pairs sitting between `review_threshold` and
+So `scribble dupes` lists pairs sitting between `review_threshold` and
 `match_threshold` and lets you decide. It skips any pair that appears together
-in one file, because those are provably different humans. `scribe merge <from>
+in one file, because those are provably different humans. `scribble merge <from>
 <into>` when it's real. The survivor keeps whichever name exists, so merging an
 unnamed duplicate into a named one never loses your work.
 

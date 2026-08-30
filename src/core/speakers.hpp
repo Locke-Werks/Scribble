@@ -6,7 +6,7 @@
 #include "db.hpp"
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 /// Cosine similarity on L2-normalised vectors. Inputs need not be normalised.
 float cosine(const std::vector<float> &a, const std::vector<float> &b);
@@ -64,4 +64,4 @@ ClusterAssignment constrained_agglomerative(const std::vector<std::vector<float>
 /// hands the merge to a human instead of making them hunt for it.
 std::vector<DuplicateCandidate> duplicate_candidates(Database &db, float low, float high);
 
-}  // namespace scribe
+}  // namespace scribble

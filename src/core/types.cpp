@@ -6,7 +6,7 @@
 
 #include "events.hpp"
 
-namespace scribe {
+namespace scribble {
 
 bool CancelToken::wait_if_paused() const {
     while (paused_.load(std::memory_order_relaxed)) {
@@ -57,4 +57,4 @@ std::string GlobalSpeaker::display() const {
     return buf;
 }
 
-}  // namespace scribe
+}  // namespace scribble

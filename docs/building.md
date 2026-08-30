@@ -1,4 +1,4 @@
-# Building ScribeEveryone
+# Building Scribble
 
 ## Toolchain
 
@@ -25,9 +25,9 @@ Binaries in `build/bin/Release`.
 
 | Option | Default | Effect |
 |---|---|---|
-| `SCRIBE_CUDA` | `ON` | GPU backends |
-| `SCRIBE_BUILD_GUI` | `ON` | Qt6 app |
-| `SCRIBE_BUILD_CLI` | `ON` | `scribe.exe` |
+| `SCRIBBLE_CUDA` | `ON` | GPU backends |
+| `SCRIBBLE_BUILD_GUI` | `ON` | Qt6 app |
+| `SCRIBBLE_BUILD_CLI` | `ON` | `scribble.exe` |
 
 First configure clones several repos and downloads onnxruntime. First build
 compiles ggml's CUDA kernels. There are 186 of them, nvcc processes them one at
@@ -57,7 +57,7 @@ the fetched ones, and two of them detonate on contact:
 - A global `/MP` gets forwarded to nvcc by ggml's CUDA target and breaks its
   temp file handling.
 
-Project flags go on the `scribe_flags` interface target. Only our targets link
+Project flags go on the `scribble_flags` interface target. Only our targets link
 it. Keep it that way.
 
 ## Everything rides the dynamic CRT
@@ -84,7 +84,7 @@ When you inevitably need to find where a `LIBCMT` reference came from: scanning
 `.lib` files for the string does not work. Don't bother. Ask the linker.
 
 ```powershell
-target_link_options(scribe_cli PRIVATE /VERBOSE:LIB)
+target_link_options(scribble_cli PRIVATE /VERBOSE:LIB)
 ```
 
 Whatever library it searched immediately before `LIBCMT.lib` is your guy.
@@ -130,7 +130,7 @@ that was ever worth asking: is this actually going to work.
 ## Share the dependency cache between build directories
 
 ```powershell
-cmake -S . -B build-debug -DFETCHCONTENT_BASE_DIR="C:/path/to/ScribeEveryone/build/_deps"
+cmake -S . -B build-debug -DFETCHCONTENT_BASE_DIR="C:/path/to/Scribble/build/_deps"
 ```
 
 Do this. Re-cloning sherpa-onnx and re-downloading onnxruntime for a second
@@ -139,9 +139,9 @@ build directory is several minutes of your life you don't get back.
 ## Layout
 
 ```
-src/core/     scribe_core, static lib, knows nothing about Qt
-src/cli/      scribe.exe
-src/gui/      ScribeEveryone.exe, Qt6 Widgets
+src/core/     scribble_core, static lib, knows nothing about Qt
+src/cli/      scribble.exe
+src/gui/      Scribble.exe, Qt6 Widgets
 resources/    version resource and icon
 tools/        icon generation, community-1 ONNX export
 ```
@@ -154,7 +154,7 @@ done wrong at 2am.
 
 ## Runtime files do not live in the install directory
 
-Models download into `%LOCALAPPDATA%\ScribeEveryone\models`. Not next to the
+Models download into `%LOCALAPPDATA%\Scribble\models`. Not next to the
 exe.
 
 An install under Program Files is read-only. The database, the scratch
@@ -174,7 +174,7 @@ $env:AZURE_CLIENT_SECRET = '...'
 .\scripts\package.ps1
 ```
 
-Stages the payload, signs it, forges `build\ScribeEveryone-Setup.exe`.
+Stages the payload, signs it, forges `build\Scribble-Setup.exe`.
 `-SkipSign` gives you a dev build.
 
 **The script signs the payload before forging, and that ordering is the whole

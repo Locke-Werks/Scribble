@@ -13,7 +13,7 @@
 #include "SpeakerModel.hpp"
 #include "db.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 SpeakerPanel::SpeakerPanel(QWidget *parent) : QWidget(parent) {
     auto *layout = new QVBoxLayout(this);
@@ -51,7 +51,7 @@ SpeakerPanel::SpeakerPanel(QWidget *parent) : QWidget(parent) {
     connect(reviewBtn, &QPushButton::clicked, this, &SpeakerPanel::reviewDuplicatesRequested);
 }
 
-void SpeakerPanel::setDatabase(scribe::Database *db) {
+void SpeakerPanel::setDatabase(scribble::Database *db) {
     db_ = db;
     refresh();
 }
@@ -177,4 +177,4 @@ void SpeakerPanel::addNote(std::int64_t globalId) {
     emit speakersChanged();
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

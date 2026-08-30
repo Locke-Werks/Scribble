@@ -5,7 +5,7 @@
 
 #include "types.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Rows of corpus-wide speakers for the right-hand panel. The name column is
 /// editable so a double-click renames in place; files and duration are read
@@ -33,9 +33,9 @@ public:
                         int role = Qt::DisplayRole) const override;
     Qt::ItemFlags flags(const QModelIndex &index) const override;
 
-    void setSpeakers(const std::vector<scribe::GlobalSpeaker> &speakers);
+    void setSpeakers(const std::vector<scribble::GlobalSpeaker> &speakers);
     std::int64_t globalIdAt(int row) const;
-    const scribe::GlobalSpeaker *speakerAt(int row) const;
+    const scribble::GlobalSpeaker *speakerAt(int row) const;
 
 signals:
     /// Emitted when the name cell is edited so the panel can persist it.
@@ -45,7 +45,7 @@ protected:
     bool setData(const QModelIndex &index, const QVariant &value, int role) override;
 
 private:
-    QVector<scribe::GlobalSpeaker> rows_;
+    QVector<scribble::GlobalSpeaker> rows_;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

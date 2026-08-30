@@ -1,10 +1,10 @@
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/version.hpp.in
-    ${CMAKE_CURRENT_BINARY_DIR}/generated/scribe/version.hpp
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/scribble/version.hpp
     @ONLY
 )
 
-add_library(scribe_core STATIC
+add_library(scribble_core STATIC
     types.cpp
     log.cpp
     util.cpp
@@ -25,15 +25,15 @@ add_library(scribe_core STATIC
     pipeline.cpp
 )
 
-target_include_directories(scribe_core
+target_include_directories(scribble_core
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
-target_link_libraries(scribe_core
+target_link_libraries(scribble_core
     PUBLIC
-        scribe_flags
+        scribble_flags
         sqlite3
     PRIVATE
         whisper
@@ -44,11 +44,11 @@ target_link_libraries(scribe_core
 )
 
 if(WIN32)
-    target_link_libraries(scribe_core PRIVATE shlwapi shell32 ole32)
+    target_link_libraries(scribble_core PRIVATE shlwapi shell32 ole32)
 endif()
 
-if(SCRIBE_CUDA)
-    target_compile_definitions(scribe_core PUBLIC SCRIBE_HAVE_CUDA=1)
+if(SCRIBBLE_CUDA)
+    target_compile_definitions(scribble_core PUBLIC SCRIBBLE_HAVE_CUDA=1)
 endif()
 
-target_compile_definitions(scribe_core PUBLIC SCRIBE_VERSION="${PROJECT_VERSION}")
+target_compile_definitions(scribble_core PUBLIC SCRIBBLE_VERSION="${PROJECT_VERSION}")

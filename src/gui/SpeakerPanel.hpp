@@ -6,11 +6,11 @@
 
 class QTableView;
 
-namespace scribe {
+namespace scribble {
 class Database;
 }
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 class SpeakerModel;
 
@@ -23,7 +23,7 @@ class SpeakerPanel : public QWidget {
 public:
     explicit SpeakerPanel(QWidget *parent = nullptr);
 
-    void setDatabase(scribe::Database *db);
+    void setDatabase(scribble::Database *db);
     void setCurrentFile(std::int64_t fileId) { currentFile_ = fileId; }
     void refresh();
 
@@ -42,10 +42,10 @@ private:
     void splitThisFile(std::int64_t globalId);
     void addNote(std::int64_t globalId);
 
-    scribe::Database *db_ = nullptr;
+    scribble::Database *db_ = nullptr;
     std::int64_t currentFile_ = -1;
     SpeakerModel *model_ = nullptr;
     QTableView *view_ = nullptr;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

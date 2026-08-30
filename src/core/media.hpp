@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -51,4 +51,4 @@ double channel_correlation(const fs::path &ffmpeg, const fs::path &input, double
 /// deduplicated.
 std::vector<fs::path> discover_media(const std::vector<fs::path> &paths, bool recursive);
 
-}  // namespace scribe
+}  // namespace scribble

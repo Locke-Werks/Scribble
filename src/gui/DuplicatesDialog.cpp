@@ -10,9 +10,9 @@
 #include "db.hpp"
 #include "speakers.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
-DuplicatesDialog::DuplicatesDialog(scribe::Database *db, float low, float high, QWidget *parent)
+DuplicatesDialog::DuplicatesDialog(scribble::Database *db, float low, float high, QWidget *parent)
     : QDialog(parent), db_(db), low_(low), high_(high) {
     setWindowTitle(QStringLiteral("Review duplicate speakers"));
     resize(560, 420);
@@ -52,7 +52,7 @@ DuplicatesDialog::DuplicatesDialog(scribe::Database *db, float low, float high, 
 void DuplicatesDialog::reload() {
     candidates_.clear();
     if (db_) {
-        const auto found = scribe::duplicate_candidates(*db_, low_, high_);
+        const auto found = scribble::duplicate_candidates(*db_, low_, high_);
         for (const auto &c : found) {
             candidates_.push_back(c);
         }
@@ -60,7 +60,7 @@ void DuplicatesDialog::reload() {
 
     table_->setRowCount(candidates_.size());
     for (int i = 0; i < candidates_.size(); ++i) {
-        const scribe::DuplicateCandidate &c = candidates_[i];
+        const scribble::DuplicateCandidate &c = candidates_[i];
         auto *a = new QTableWidgetItem(
             QStringLiteral("%1 (%2 files)").arg(QString::fromStdString(c.left_display)).arg(c.left_files));
         auto *b = new QTableWidgetItem(
@@ -90,7 +90,7 @@ void DuplicatesDialog::mergeSelected() {
     if (row < 0 || row >= candidates_.size() || !db_) {
         return;
     }
-    const scribe::DuplicateCandidate c = candidates_[row];
+    const scribble::DuplicateCandidate c = candidates_[row];
 
     // Keep the more established identity: a named one wins, otherwise the one
     // present in more files, so human naming is never discarded by a merge.
@@ -118,11 +118,11 @@ void DuplicatesDialog::dismissSelected() {
     if (row < 0 || row >= candidates_.size() || !db_) {
         return;
     }
-    const scribe::DuplicateCandidate c = candidates_[row];
+    const scribble::DuplicateCandidate c = candidates_[row];
     // Persisted so the pair stays hidden across restarts. duplicate_candidates
     // already excludes dismissed pairs, so reloading drops it from the list.
     db_->dismiss_pair(c.left, c.right);
     reload();
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

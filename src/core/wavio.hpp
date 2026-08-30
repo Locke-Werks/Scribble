@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -38,4 +38,4 @@ bool write_wav(const fs::path &path, const WavData &data, std::string *error);
 /// speech scores low. Used to decide whether a file is worth isolating.
 float estimate_noise_floor(const std::vector<float> &samples);
 
-}  // namespace scribe
+}  // namespace scribble

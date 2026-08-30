@@ -9,7 +9,7 @@
 #include "proc.hpp"
 #include "util.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 constexpr const char *kWhisperBase =
@@ -410,4 +410,4 @@ bool resolve_model(const std::string &name, ModelKind kind, const fs::path &mode
     return true;
 }
 
-}  // namespace scribe
+}  // namespace scribble

@@ -1,4 +1,4 @@
-"""Generate the ScribeEveryone application icon.
+"""Generate the Scribble application icon.
 
 Three bars in three colours: a transcript where the speakers are told apart,
 which is the whole point of the program. Kept to solid shapes with wide spacing
@@ -71,12 +71,12 @@ def main() -> None:
 
     frames = [render(size) for size in SIZES]
 
-    ico = ASSETS / "scribeeveryone.ico"
+    ico = ASSETS / "scribble.ico"
     # Every size is embedded rather than left for the shell to downscale from
     # 256, which turns to mush in the notification area.
     frames[-1].save(ico, format="ICO", sizes=[(s, s) for s in SIZES])
 
-    png = ASSETS / "scribeeveryone.png"
+    png = ASSETS / "scribble.png"
     render(512).save(png, format="PNG")
 
     print(f"wrote {ico} ({ico.stat().st_size} bytes)")

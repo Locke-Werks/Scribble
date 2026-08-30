@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <vector>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
@@ -80,7 +80,7 @@ void PipelineWorker::recluster() {
         return;
     }
     try {
-        const scribe::Pipeline::ReclusterResult r = pipeline_->recluster();
+        const scribble::Pipeline::ReclusterResult r = pipeline_->recluster();
         emit reclustered(
             QStringLiteral("Reclustered %1 voiceprints: %2 to %3 speakers, %4 merged, %5 split.")
                 .arg(r.locals)
@@ -136,7 +136,7 @@ PipelineController::~PipelineController() {
     db_.reset();
 }
 
-bool PipelineController::open(const scribe::Config &cfg, QString *error) {
+bool PipelineController::open(const scribble::Config &cfg, QString *error) {
     // Resetting the pipeline while the worker is inside run() would free it
     // under the running thread. The toolbar disables these actions during a
     // batch, but a disabled widget is not an invariant, so enforce it here.
@@ -149,13 +149,13 @@ bool PipelineController::open(const scribe::Config &cfg, QString *error) {
     config_.resolve(std::filesystem::current_path());
 
     if (!sink_) {
-        sink_ = std::make_unique<scribe::gui::GuiEventSink>();
-        connect(sink_.get(), &scribe::gui::GuiEventSink::event, this,
+        sink_ = std::make_unique<scribble::gui::GuiEventSink>();
+        connect(sink_.get(), &scribble::gui::GuiEventSink::event, this,
                 &PipelineController::scribeEvent, Qt::QueuedConnection);
     }
 
     try {
-        db_ = std::make_unique<scribe::Database>(config_.db_path);
+        db_ = std::make_unique<scribble::Database>(config_.db_path);
     } catch (const std::exception &e) {
         if (error) *error = QString::fromUtf8(e.what());
         db_.reset();
@@ -167,14 +167,14 @@ bool PipelineController::open(const scribe::Config &cfg, QString *error) {
     return true;
 }
 
-bool PipelineController::updateConfig(const scribe::Config &cfg, QString *error) {
+bool PipelineController::updateConfig(const scribble::Config &cfg, QString *error) {
     if (busy_) {
         if (error) *error = QStringLiteral("Cannot change configuration while a batch is running.");
         return false;
     }
 
     const std::filesystem::path oldDb = config_.db_path;
-    scribe::Config resolved = cfg;
+    scribble::Config resolved = cfg;
     resolved.resolve(std::filesystem::current_path());
 
     if (resolved.db_path != oldDb || !db_) {
@@ -189,7 +189,7 @@ bool PipelineController::updateConfig(const scribe::Config &cfg, QString *error)
 }
 
 void PipelineController::recreatePipeline() {
-    pipeline_ = std::make_unique<scribe::Pipeline>(config_, *db_, *sink_);
+    pipeline_ = std::make_unique<scribble::Pipeline>(config_, *db_, *sink_);
     consumed_ = false;
     worker_->setPipeline(pipeline_.get());
 }
@@ -299,4 +299,4 @@ void PipelineController::onFailed(const QString &message) {
     emit failed(message);
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

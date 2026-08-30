@@ -1,11 +1,11 @@
 #include <windows.h>
 
 // Declared first so Explorer uses it as the file icon for the executable.
-IDI_APPICON ICON "../assets/scribeeveryone.ico"
+IDI_APPICON ICON "../assets/scribble.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION     SCRIBE_RC_VERSION
-PRODUCTVERSION  SCRIBE_RC_VERSION
+FILEVERSION     SCRIBBLE_RC_VERSION
+PRODUCTVERSION  SCRIBBLE_RC_VERSION
 FILEFLAGSMASK   VS_FFI_FILEFLAGSMASK
 #ifdef _DEBUG
 FILEFLAGS       VS_FF_DEBUG
@@ -21,13 +21,13 @@ BEGIN
         BLOCK "040904B0"
         BEGIN
             VALUE "CompanyName",      "Locke Werks"
-            VALUE "FileDescription",  SCRIBE_RC_DESCRIPTION
-            VALUE "FileVersion",      SCRIBE_RC_VERSION_STRING
-            VALUE "InternalName",     SCRIBE_RC_INTERNAL_NAME
+            VALUE "FileDescription",  SCRIBBLE_RC_DESCRIPTION
+            VALUE "FileVersion",      SCRIBBLE_RC_VERSION_STRING
+            VALUE "InternalName",     SCRIBBLE_RC_INTERNAL_NAME
             VALUE "LegalCopyright",   "Locke Werks. Licensed under the GNU GPL v3."
-            VALUE "OriginalFilename", SCRIBE_RC_ORIGINAL_NAME
-            VALUE "ProductName",      "ScribeEveryone"
-            VALUE "ProductVersion",   SCRIBE_RC_VERSION_STRING
+            VALUE "OriginalFilename", SCRIBBLE_RC_ORIGINAL_NAME
+            VALUE "ProductName",      "Scribble"
+            VALUE "ProductVersion",   SCRIBBLE_RC_VERSION_STRING
         END
     END
     BLOCK "VarFileInfo"

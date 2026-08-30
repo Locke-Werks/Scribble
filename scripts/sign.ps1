@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Signs ScribeEveryone binaries with Azure Trusted Signing.
+    Signs Scribble binaries with Azure Trusted Signing.
 
 .DESCRIPTION
     Signs every file given, or the whole release output when called with no
@@ -20,7 +20,7 @@
 
 .EXAMPLE
     .\scripts\sign.ps1
-    .\scripts\sign.ps1 build\bin\Release\scribe.exe
+    .\scripts\sign.ps1 build\bin\Release\scribble.exe
 #>
 
 param(

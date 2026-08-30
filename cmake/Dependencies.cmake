@@ -4,19 +4,19 @@ set(FETCHCONTENT_QUIET OFF)
 
 # ---------------------------------------------------------------- sqlite3 ---
 # Vendored amalgamation. One .c file, no system dependency, no version drift.
-set(SCRIBE_SQLITE_URL  "https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip"
+set(SCRIBBLE_SQLITE_URL  "https://www.sqlite.org/2025/sqlite-amalgamation-3500400.zip"
     CACHE STRING "SQLite amalgamation archive")
-set(SCRIBE_SQLITE_SHA256 "" CACHE STRING "SHA256 of the SQLite archive")
+set(SCRIBBLE_SQLITE_SHA256 "" CACHE STRING "SHA256 of the SQLite archive")
 
-if(SCRIBE_SQLITE_SHA256)
+if(SCRIBBLE_SQLITE_SHA256)
     FetchContent_Declare(sqlite3_amalgamation
-        URL      ${SCRIBE_SQLITE_URL}
-        URL_HASH SHA256=${SCRIBE_SQLITE_SHA256}
+        URL      ${SCRIBBLE_SQLITE_URL}
+        URL_HASH SHA256=${SCRIBBLE_SQLITE_SHA256}
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
 else()
     FetchContent_Declare(sqlite3_amalgamation
-        URL      ${SCRIBE_SQLITE_URL}
+        URL      ${SCRIBBLE_SQLITE_URL}
         DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     )
 endif()
@@ -48,7 +48,7 @@ set(WHISPER_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS      OFF CACHE BOOL "" FORCE)
-if(SCRIBE_CUDA)
+if(SCRIBBLE_CUDA)
     set(GGML_CUDA ON CACHE BOOL "" FORCE)
     # ggml defaults to -cudart static, and cudart_static.lib is built against
     # the static CRT, which is the remaining source of the LNK4098 LIBCMT
@@ -87,7 +87,7 @@ set(SHERPA_ONNX_ENABLE_C_API       ON  CACHE BOOL "" FORCE)
 set(SHERPA_ONNX_ENABLE_WEBSOCKET   OFF CACHE BOOL "" FORCE)
 set(SHERPA_ONNX_ENABLE_BINARY      OFF CACHE BOOL "" FORCE)
 set(SHERPA_ONNX_BUILD_C_API_EXAMPLES OFF CACHE BOOL "" FORCE)
-if(SCRIBE_CUDA)
+if(SCRIBBLE_CUDA)
     set(SHERPA_ONNX_ENABLE_GPU ON CACHE BOOL "" FORCE)
 endif()
 
@@ -106,24 +106,24 @@ FetchContent_MakeAvailable(sherpa_onnx)
 # the executable. Without them the provider does not degrade to CPU, it fails
 # the whole session with a missing-module error, so they are staged at build
 # time rather than left to the installer.
-set(SCRIBE_ORT_LIB_DIRS
+set(SCRIBBLE_ORT_LIB_DIRS
     "${FETCHCONTENT_BASE_DIR}/onnxruntime-src/lib"
     "${CMAKE_BINARY_DIR}/_deps/onnxruntime-src/lib"
 )
-set(SCRIBE_ORT_DLLS "")
-foreach(_dir IN LISTS SCRIBE_ORT_LIB_DIRS)
+set(SCRIBBLE_ORT_DLLS "")
+foreach(_dir IN LISTS SCRIBBLE_ORT_LIB_DIRS)
     if(EXISTS "${_dir}")
         file(GLOB _found "${_dir}/onnxruntime*.dll")
-        list(APPEND SCRIBE_ORT_DLLS ${_found})
+        list(APPEND SCRIBBLE_ORT_DLLS ${_found})
         break()
     endif()
 endforeach()
-list(REMOVE_DUPLICATES SCRIBE_ORT_DLLS)
+list(REMOVE_DUPLICATES SCRIBBLE_ORT_DLLS)
 
-if(SCRIBE_ORT_DLLS)
-    add_custom_target(scribe_stage_onnxruntime ALL
+if(SCRIBBLE_ORT_DLLS)
+    add_custom_target(scribble_stage_onnxruntime ALL
         COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SCRIBE_ORT_DLLS}
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${SCRIBBLE_ORT_DLLS}
                 "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/$<CONFIG>"
         COMMENT "Staging onnxruntime runtime libraries"
         VERBATIM

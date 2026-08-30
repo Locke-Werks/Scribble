@@ -6,7 +6,7 @@
 
 class QPlainTextEdit;
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Bottom dock that tails the run log. Lines are colour-coded by level and the
 /// buffer is capped so a long batch cannot grow it without bound.
@@ -15,11 +15,11 @@ class LogDock : public QDockWidget {
 public:
     explicit LogDock(QWidget *parent = nullptr);
 
-    void append(scribe::LogLevel level, const QString &text);
+    void append(scribble::LogLevel level, const QString &text);
     void clearLog();
 
 private:
     QPlainTextEdit *view_ = nullptr;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

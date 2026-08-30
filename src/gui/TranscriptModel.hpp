@@ -8,7 +8,7 @@
 
 #include "types.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// One transcript, one row per segment. Text lands first from live Whisper
 /// output with no speaker; diarization and identity resolution then update the
@@ -36,9 +36,9 @@ public:
     /// can recolour every row without another database read per paint.
     void setNameResolver(QHash<std::int64_t, QString> names);
 
-    void reset(const QVector<scribe::Segment> &segments);
-    void appendSegment(const scribe::Segment &segment);
-    void applyLabelled(const QVector<scribe::Segment> &segments);
+    void reset(const QVector<scribble::Segment> &segments);
+    void appendSegment(const scribble::Segment &segment);
+    void applyLabelled(const QVector<scribble::Segment> &segments);
     void applyResolutions(const QHash<QString, std::int64_t> &labelToGlobal);
     void refreshSpeakers();
 
@@ -62,4 +62,4 @@ private:
     QHash<std::int64_t, QString> names_;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

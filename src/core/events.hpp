@@ -8,7 +8,7 @@
 
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 /// A file entered the queue. Emitted during discovery, before any work.
 struct EvFileDiscovered {
@@ -134,4 +134,4 @@ private:
     std::atomic<bool> paused_{false};
 };
 
-}  // namespace scribe
+}  // namespace scribble

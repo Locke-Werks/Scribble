@@ -1,4 +1,4 @@
-# Using ScribeEveryone
+# Using Scribble
 
 You pointed it at a folder. It chewed through 200 files. Now there are 47 people
 called `SPEAKER_0031` and you are staring at a toolbar with four buttons whose
@@ -9,12 +9,12 @@ Cool. Let's fix that.
 ## The whole thing in six commands
 
 ```powershell
-scribe run D:\recordings     # do the work
-scribe recluster             # ONCE. at the end. we'll get to it.
-scribe dupes                 # "are these two the same guy"
-scribe merge 7 3             # they were
-scribe name 3 "Dave"         # hello Dave
-scribe render                # put Dave's name in every file he's in
+scribble run D:\recordings     # do the work
+scribble recluster             # ONCE. at the end. we'll get to it.
+scribble dupes                 # "are these two the same guy"
+scribble merge 7 3             # they were
+scribble name 3 "Dave"         # hello Dave
+scribble render                # put Dave's name in every file he's in
 ```
 
 That order is load bearing. Do it backwards and you just do it twice. If you
@@ -97,15 +97,15 @@ know.
 
 | What | Where | Why |
 |---|---|---|
-| Transcripts | `Documents\ScribeEveryone` | somewhere findable |
-| Speaker database | `%LOCALAPPDATA%\ScribeEveryone\scribe.db` | not Program Files, which is read-only, which I learned the hard way |
-| Models | `%LOCALAPPDATA%\ScribeEveryone\models` | 4 GB, survives reinstall |
-| cuDNN if you said yes | `%LOCALAPPDATA%\ScribeEveryone\runtime` | same |
-| Scratch audio | `%LOCALAPPDATA%\ScribeEveryone\work` | deleted when a file finishes |
+| Transcripts | `Documents\Scribble` | somewhere findable |
+| Speaker database | `%LOCALAPPDATA%\Scribble\scribble.db` | not Program Files, which is read-only, which I learned the hard way |
+| Models | `%LOCALAPPDATA%\Scribble\models` | 4 GB, survives reinstall |
+| cuDNN if you said yes | `%LOCALAPPDATA%\Scribble\runtime` | same |
+| Scratch audio | `%LOCALAPPDATA%\Scribble\work` | deleted when a file finishes |
 
-Override with `--out`, `--db`, or `scribe.toml`.
+Override with `--out`, `--db`, or `scribble.toml`.
 
-**Back up `scribe.db`.** I'm going to say this once and then it's on you.
+**Back up `scribble.db`.** I'm going to say this once and then it's on you.
 
 It is not a cache. It holds every transcript, every voiceprint, and every name
 you typed. The SRT files are just output. This is the actual work. Delete it and
@@ -116,16 +116,16 @@ short of running the entire corpus again and redoing all the naming by hand.
 ## From a terminal
 
 ```
-scribe run <path>...        transcribe files and folders
-scribe speakers             list everyone in the corpus
-scribe name <id> <name>     name one
-scribe merge <from> <into>  fold one into another
-scribe dupes                pairs that might be the same person
-scribe dismiss <id> <id>    stop asking me about this pair
-scribe recluster            regroup everything, keep names
-scribe render               rewrite transcripts from the database
-scribe models               what's downloadable
-scribe gpu [install]        GPU for isolation and diarization
+scribble run <path>...        transcribe files and folders
+scribble speakers             list everyone in the corpus
+scribble name <id> <name>     name one
+scribble merge <from> <into>  fold one into another
+scribble dupes                pairs that might be the same person
+scribble dismiss <id> <id>    stop asking me about this pair
+scribble recluster            regroup everything, keep names
+scribble render               rewrite transcripts from the database
+scribble models               what's downloadable
+scribble gpu [install]        GPU for isolation and diarization
 ```
 
 Flags worth knowing:
@@ -165,7 +165,7 @@ grammatically perfect, with total confidence. VAD is on by default precisely to
 stop this. If you're seeing it, `vad_filter` got turned off or the VAD model
 didn't download.
 
-**Everything failed with a CUDA error.** `scribe gpu` will tell you what's
+**Everything failed with a CUDA error.** `scribble gpu` will tell you what's
 missing. Or set `onnx_accel = "cpu"` and move on with your life. On a machine
 with real core count you'll barely notice.
 

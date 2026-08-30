@@ -11,7 +11,7 @@ class QLineEdit;
 class QListView;
 class QSortFilterProxyModel;
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 class TranscriptModel;
 class SegmentDelegate;
@@ -26,12 +26,12 @@ public:
     explicit TranscriptView(QWidget *parent = nullptr);
 
     /// Replaces the view with a file's segments. Used when a queue row is picked.
-    void showFile(std::int64_t fileId, const QVector<scribe::Segment> &segments);
+    void showFile(std::int64_t fileId, const QVector<scribble::Segment> &segments);
     void clearFile();
     std::int64_t currentFile() const { return fileId_; }
 
-    void appendLiveSegment(std::int64_t fileId, const scribe::Segment &segment);
-    void applyLabelled(std::int64_t fileId, const QVector<scribe::Segment> &segments);
+    void appendLiveSegment(std::int64_t fileId, const scribble::Segment &segment);
+    void applyLabelled(std::int64_t fileId, const QVector<scribble::Segment> &segments);
     void applyResolutions(std::int64_t fileId, const QHash<QString, std::int64_t> &labelToGlobal);
 
     /// Updates the id-to-display map and recolours every line. Called after a
@@ -53,4 +53,4 @@ private:
     QLabel *heading_ = nullptr;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

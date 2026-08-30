@@ -9,7 +9,7 @@ extern "C" {
 }
 #include "whisper.h"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 std::mutex g_mutex;
@@ -68,4 +68,4 @@ void remove_backend_log_capture() {
     g_pending.clear();
 }
 
-}  // namespace scribe
+}  // namespace scribble

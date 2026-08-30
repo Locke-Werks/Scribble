@@ -5,7 +5,7 @@
 #include "FormatUtil.hpp"
 #include "SpeakerPalette.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 int SpeakerModel::rowCount(const QModelIndex &parent) const {
     return parent.isValid() ? 0 : rows_.size();
@@ -19,7 +19,7 @@ QVariant SpeakerModel::data(const QModelIndex &index, int role) const {
     if (!index.isValid() || index.row() >= rows_.size()) {
         return {};
     }
-    const scribe::GlobalSpeaker &sp = rows_[index.row()];
+    const scribble::GlobalSpeaker &sp = rows_[index.row()];
     switch (role) {
         case Qt::DisplayRole:
         case Qt::EditRole:
@@ -91,7 +91,7 @@ bool SpeakerModel::setData(const QModelIndex &index, const QVariant &value, int 
     return true;
 }
 
-void SpeakerModel::setSpeakers(const std::vector<scribe::GlobalSpeaker> &speakers) {
+void SpeakerModel::setSpeakers(const std::vector<scribble::GlobalSpeaker> &speakers) {
     beginResetModel();
     rows_.clear();
     rows_.reserve(static_cast<int>(speakers.size()));
@@ -108,11 +108,11 @@ std::int64_t SpeakerModel::globalIdAt(int row) const {
     return rows_[row].id;
 }
 
-const scribe::GlobalSpeaker *SpeakerModel::speakerAt(int row) const {
+const scribble::GlobalSpeaker *SpeakerModel::speakerAt(int row) const {
     if (row < 0 || row >= rows_.size()) {
         return nullptr;
     }
     return &rows_[row];
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

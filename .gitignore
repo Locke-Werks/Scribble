@@ -9,10 +9,10 @@ CMakeUserPresets.json
 lwstub-signed.exe
 
 # Runtime state. The speaker store is the corpus, not the source.
-scribe.db
-scribe.db-wal
-scribe.db-shm
-scribe.toml
+scribble.db
+scribble.db-wal
+scribble.db-shm
+scribble.toml
 
 # Model weights, several GB, fetched on first run.
 models/

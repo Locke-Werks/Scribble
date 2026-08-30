@@ -3,7 +3,7 @@
 #include <QColor>
 #include <QString>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Stable colours for speakers. The same global identity always draws the same
 /// colour, in the transcript and in the speaker panel swatch, which is what lets
@@ -16,4 +16,4 @@ public:
     static QColor unknown();
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

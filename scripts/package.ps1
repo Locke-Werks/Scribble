@@ -31,7 +31,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $BinDir   = Join-Path $RepoRoot "build\bin\$Config"
 $Payload  = Join-Path $RepoRoot 'build\payload'
-$OutFile  = Join-Path $RepoRoot 'build\ScribeEveryone-Setup.exe'
+$OutFile  = Join-Path $RepoRoot 'build\Scribble-Setup.exe'
 $Toml     = Join-Path $RepoRoot 'installer\installer.toml'
 
 if (-not (Test-Path $BinDir)) {
@@ -180,7 +180,7 @@ try {
                    '--config',  'installer\installer.toml',
                    '--payload', 'build\payload',
                    '--stub',    'build\lwstub-signed.exe',
-                   '--out',     'build\ScribeEveryone-Setup.exe')
+                   '--out',     'build\Scribble-Setup.exe')
     if (-not $SkipSign) { $forgeArgs += '--sign' } else { $forgeArgs += '--dev' }
 
     & $Forge.FullName @forgeArgs

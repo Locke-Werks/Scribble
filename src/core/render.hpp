@@ -7,7 +7,7 @@
 
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -47,4 +47,4 @@ fs::path output_path(const fs::path &out_dir, const fs::path &source, int track,
 /// Longest common parent of every input, used as the root when mirroring.
 fs::path common_root(const std::vector<fs::path> &paths);
 
-}  // namespace scribe
+}  // namespace scribble

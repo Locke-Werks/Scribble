@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -26,4 +26,4 @@ std::string quote_arg(const std::string &arg);
 /// is why model downloads need no HTTP or archive library linked in.
 fs::path find_system_tool(const std::string &name);
 
-}  // namespace scribe
+}  // namespace scribble

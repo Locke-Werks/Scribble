@@ -1,6 +1,6 @@
 """Export the pyannote community-1 segmentation model to ONNX.
 
-ScribeEveryone diarizes with sherpa-onnx, which loads a pyannote segmentation
+Scribble diarizes with sherpa-onnx, which loads a pyannote segmentation
 model from ONNX. The bundled default is the 3.0 export. community-1 is better
 at counting speakers, which is what corpus-wide identity depends on, but it
 ships only as PyTorch behind a gated Hugging Face repo, so it cannot be
@@ -8,7 +8,7 @@ redistributed here and has to be exported locally.
 
 This touches pyannote internals to reach the segmentation model inside the
 pipeline. Those internals are not a stable API, so treat a failure here as
-"the layout moved", not as a bug in ScribeEveryone. The 3.0 export keeps
+"the layout moved", not as a bug in Scribble. The 3.0 export keeps
 working either way.
 
 Usage:
@@ -166,7 +166,7 @@ def main() -> int:
     print(f"onnxruntime check passed, output {out[0].shape}")
 
     print(f"\nwrote {args.out}")
-    print("point scribe.toml at it:")
+    print("point scribble.toml at it:")
     print(f'  segmentation_model = "{args.out.resolve().as_posix()}"')
     return 0
 

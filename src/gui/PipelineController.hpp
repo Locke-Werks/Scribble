@@ -13,7 +13,7 @@
 #include "db.hpp"
 #include "pipeline.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Lives on the worker thread and does nothing but call the blocking pipeline
 /// entry points. Kept separate from the pipeline so it can own a Qt event loop
@@ -22,7 +22,7 @@ class PipelineWorker : public QObject {
     Q_OBJECT
 public:
     using QObject::QObject;
-    void setPipeline(scribe::Pipeline *pipeline) { pipeline_ = pipeline; }
+    void setPipeline(scribble::Pipeline *pipeline) { pipeline_ = pipeline; }
 
 public slots:
     void enqueue(const QStringList &paths);
@@ -40,7 +40,7 @@ signals:
 
 private:
     bool enqueuePaths(const QStringList &paths, QString *error);
-    scribe::Pipeline *pipeline_ = nullptr;
+    scribble::Pipeline *pipeline_ = nullptr;
 };
 
 /// Owns the database, the event sink and the pipeline, and drives them from a
@@ -54,15 +54,15 @@ public:
 
     /// Opens (or reopens) the database for this config. Returns false and fills
     /// `error` when the database cannot be opened.
-    bool open(const scribe::Config &cfg, QString *error);
+    bool open(const scribble::Config &cfg, QString *error);
     bool isOpen() const { return db_ != nullptr; }
 
-    scribe::Database *database() const { return db_.get(); }
-    const scribe::Config &config() const { return config_; }
+    scribble::Database *database() const { return db_.get(); }
+    const scribble::Config &config() const { return config_; }
 
     /// Applies edited settings. Reopens the database when its path moved and
     /// drops the current pipeline so the next run picks up the new config.
-    bool updateConfig(const scribe::Config &cfg, QString *error);
+    bool updateConfig(const scribble::Config &cfg, QString *error);
 
     bool busy() const { return busy_.load(); }
 
@@ -75,7 +75,7 @@ public slots:
     void rerender(bool all);
 
 signals:
-    void scribeEvent(const scribe::gui::ScribeEvent &e);
+    void scribeEvent(const scribble::gui::ScribeEvent &e);
     void busyChanged(bool busy);
     void enqueueFinished(int count);
     void runFinished();
@@ -94,10 +94,10 @@ private:
     void recreatePipeline();
     void setBusy(bool value);
 
-    scribe::Config config_;
-    std::unique_ptr<scribe::Database> db_;
-    std::unique_ptr<scribe::gui::GuiEventSink> sink_;
-    std::unique_ptr<scribe::Pipeline> pipeline_;
+    scribble::Config config_;
+    std::unique_ptr<scribble::Database> db_;
+    std::unique_ptr<scribble::gui::GuiEventSink> sink_;
+    std::unique_ptr<scribble::Pipeline> pipeline_;
 
     QThread thread_;
     PipelineWorker *worker_ = nullptr;
@@ -107,4 +107,4 @@ private:
     std::atomic<bool> busy_{false};
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

@@ -10,7 +10,7 @@
 #include "paths.hpp"
 #include "util.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 IsolateMode parse_isolate(std::string_view s, bool *ok) {
@@ -293,7 +293,7 @@ Config Config::load(const fs::path &file, std::string *error) {
 
 void Config::save(const fs::path &file) const {
     std::ostringstream out;
-    out << "# ScribeEveryone configuration\n\n";
+    out << "# Scribble configuration\n\n";
 
     auto quote = [](const std::string &s) {
         return "\"" + replace_all(replace_all(s, "\\", "\\\\"), "\"", "\\\"") + "\"";
@@ -381,23 +381,23 @@ void Config::resolve(const fs::path &root) {
     // becomes a per-user location that is writable no matter where the program
     // was started from.
     if (db_path.empty()) {
-        db_path = scribe::app_data_dir() / "scribe.db";
+        db_path = scribble::app_data_dir() / "scribble.db";
     } else {
         absolutise(db_path);
     }
     if (work_dir.empty()) {
-        work_dir = scribe::app_data_dir() / "work";
+        work_dir = scribble::app_data_dir() / "work";
     } else {
         absolutise(work_dir);
     }
     if (out_dir.empty()) {
-        out_dir = scribe::documents_dir() / "ScribeEveryone";
+        out_dir = scribble::documents_dir() / "Scribble";
     } else {
         absolutise(out_dir);
     }
 
     if (model_dir.empty()) {
-        model_dir = scribe::default_model_dir();
+        model_dir = scribble::default_model_dir();
     } else {
         absolutise(model_dir);
     }
@@ -452,4 +452,4 @@ std::string Config::validate() const {
     return join(problems, "; ");
 }
 
-}  // namespace scribe
+}  // namespace scribble

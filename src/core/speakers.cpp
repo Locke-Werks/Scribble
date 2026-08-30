@@ -8,7 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 struct Candidate {
@@ -395,4 +395,4 @@ std::vector<DuplicateCandidate> duplicate_candidates(Database &db, float low, fl
     return out;
 }
 
-}  // namespace scribe
+}  // namespace scribble

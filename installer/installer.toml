@@ -1,17 +1,17 @@
 [product]
-name         = "ScribeEveryone"
-version      = "0.1.3"
+name         = "Scribble"
+version      = "0.2.0"
 publisher    = "Locke Werks"
 description  = "Batch transcription with diarization and corpus-wide speaker identity"
 copyright    = "Locke Werks. Licensed under the GNU GPL v3."
-url          = "https://github.com/Locke-Werks/ScribeEveryone"
-icon         = "../assets/scribeeveryone.ico"
+url          = "https://github.com/Locke-Werks/Scribble"
+icon         = "../assets/scribble.ico"
 upgrade_code = "7f3c1b4a-2d58-4e91-9a06-c5b8e2f74d13"
-aumid        = "LockeWerks.ScribeEveryone"
+aumid        = "LockeWerks.Scribble"
 
 [install]
 scope     = "machine"
-dir       = "{ProgramFiles}\\Locke Werks\\ScribeEveryone"
+dir       = "{ProgramFiles}\\Locke Werks\\Scribble"
 elevation = "required"
 
 [ui]
@@ -20,7 +20,7 @@ warning = "Models are downloaded on first use and need roughly 4 GB of disk. The
 [[preflight]]
 type = "os_build"
 min  = 22000
-fail = "ScribeEveryone requires Windows 11."
+fail = "Scribble requires Windows 11."
 
 [[preflight]]
 type  = "free_disk_space"
@@ -34,32 +34,32 @@ fail  = "Needs at least 8 GB of RAM."
 
 [[preflight]]
 type            = "process_not_running"
-name            = "ScribeEveryone.exe"
+name            = "ScribbleDesktop.exe"
 restart_manager = true
-fail            = "ScribeEveryone is running. Close it and try again."
+fail            = "Scribble is running. Close it and try again."
 
 [[options]]
 id      = "desktop_shortcut"
 label   = "Add a desktop shortcut"
-detail  = "Places ScribeEveryone on the desktop for everyone who uses this machine."
+detail  = "Places Scribble on the desktop for everyone who uses this machine."
 default = false
 
 [[options]]
 id      = "add_to_path"
-label   = "Add the scribe command to PATH"
+label   = "Add the scribble command to PATH"
 detail  = "Lets you run transcriptions from a terminal without typing the full install path."
 default = true
 
 [[actions]]
 type   = "shortcut"
-target = "{InstallDir}\\ScribeEveryone.exe"
-name   = "ScribeEveryone"
+target = "{InstallDir}\\ScribbleDesktop.exe"
+name   = "Scribble"
 
 [[actions]]
 type   = "shortcut"
-target = "{InstallDir}\\ScribeEveryone.exe"
+target = "{InstallDir}\\ScribbleDesktop.exe"
 where  = "desktop"
-name   = "ScribeEveryone"
+name   = "Scribble"
 when   = "desktop_shortcut"
 
 [[actions]]

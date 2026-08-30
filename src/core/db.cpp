@@ -7,7 +7,7 @@
 
 #include "util.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 constexpr int kSchemaVersion = 1;
@@ -798,4 +798,4 @@ std::vector<std::string> Database::outputs(std::int64_t file_id) const {
     return out;
 }
 
-}  // namespace scribe
+}  // namespace scribble

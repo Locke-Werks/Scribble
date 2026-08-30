@@ -10,7 +10,7 @@
 #include "events.hpp"
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -58,4 +58,4 @@ void assign_speakers(std::vector<Segment> &segments, const std::vector<DiarizedT
 /// "speaker_00" style label used inside one file before global resolution.
 std::string local_label_for(int speaker);
 
-}  // namespace scribe
+}  // namespace scribble

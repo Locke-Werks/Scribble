@@ -8,7 +8,7 @@
 
 #include "events.hpp"
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -63,4 +63,4 @@ using GpuProgress =
 bool install_gpu_runtime(const GpuRuntimeStatus &status, const GpuProgress &progress,
                          const CancelToken &cancel, std::string *error);
 
-}  // namespace scribe
+}  // namespace scribble

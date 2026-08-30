@@ -8,7 +8,7 @@
 
 #include "media.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 #pragma pack(push, 1)
@@ -377,4 +377,4 @@ float estimate_noise_floor(const std::vector<float> &samples) {    constexpr int
     return std::min(1.0f, floor / median);
 }
 
-}  // namespace scribe
+}  // namespace scribble

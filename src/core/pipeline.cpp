@@ -19,7 +19,7 @@
 #include "util.hpp"
 #include "wavio.hpp"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 using Clock = std::chrono::steady_clock;
@@ -708,4 +708,4 @@ int Pipeline::rerender(bool all) {
     return count;
 }
 
-}  // namespace scribe
+}  // namespace scribble

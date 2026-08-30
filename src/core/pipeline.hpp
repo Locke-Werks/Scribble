@@ -8,7 +8,7 @@
 #include "events.hpp"
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 class Database;
 
@@ -57,4 +57,4 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace scribe
+}  // namespace scribble

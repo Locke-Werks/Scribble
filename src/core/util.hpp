@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -40,4 +40,4 @@ bool write_file_atomic(const fs::path &path, std::string_view data, std::string 
 std::wstring widen(std::string_view utf8);
 std::string narrow(std::wstring_view utf16);
 
-}  // namespace scribe
+}  // namespace scribble

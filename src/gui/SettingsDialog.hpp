@@ -12,16 +12,16 @@ class QLineEdit;
 class QPlainTextEdit;
 class QSpinBox;
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Edits the whole Config. Fields are grouped into tabs and carry tooltips taken
 /// from the explanations already written against each setting in config.hpp.
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SettingsDialog(const scribe::Config &config, QWidget *parent = nullptr);
+    explicit SettingsDialog(const scribble::Config &config, QWidget *parent = nullptr);
 
-    scribe::Config config() const;
+    scribble::Config config() const;
 
 private:
     QWidget *buildPathsTab();
@@ -33,7 +33,7 @@ private:
 
     QWidget *browseRow(QLineEdit *edit, bool directory);
 
-    scribe::Config base_;  ///< preserves fields the dialog does not surface
+    scribble::Config base_;  ///< preserves fields the dialog does not surface
 
     // Paths
     QLineEdit *outDir_ = nullptr;
@@ -95,4 +95,4 @@ private:
     QSpinBox *nThreads_ = nullptr;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

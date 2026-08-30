@@ -2,7 +2,7 @@
 
 #include <QStyledItemDelegate>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Paints the queue's progress column as an inline bar. A failed row draws an
 /// empty bar tinted to match the row's failed state rather than a misleading
@@ -16,4 +16,4 @@ public:
                const QModelIndex &index) const override;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

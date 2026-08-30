@@ -4,11 +4,11 @@
 
 #include "config.hpp"
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
-/// %LOCALAPPDATA%\ScribeEveryone on Windows, ~/.local/share/ScribeEveryone
+/// %LOCALAPPDATA%\Scribble on Windows, ~/.local/share/Scribble
 /// elsewhere. Models live here rather than beside the exe so an install under
 /// Program Files stays read-only and a reinstall does not discard several
 /// gigabytes of downloaded weights.
@@ -57,4 +57,4 @@ const char *onnx_small_model_provider(Accel requested);
 /// of the CPU: 38s against 113s on the machine above.
 const char *onnx_large_model_provider(Accel requested);
 
-}  // namespace scribe
+}  // namespace scribble

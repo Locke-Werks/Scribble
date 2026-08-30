@@ -12,7 +12,7 @@
 
 struct sqlite3;
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -117,4 +117,4 @@ private:
     std::unique_ptr<Impl> impl_;
 };
 
-}  // namespace scribe
+}  // namespace scribble

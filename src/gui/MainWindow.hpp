@@ -18,7 +18,7 @@ class QSplitter;
 class QTableView;
 class QItemSelection;
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 class PipelineController;
 class QueueModel;
@@ -41,7 +41,7 @@ protected:
     void dropEvent(QDropEvent *event) override;
 
 private slots:
-    void onScribeEvent(const scribe::gui::ScribeEvent &e);
+    void onScribeEvent(const scribble::gui::ScribeEvent &e);
     void onBusyChanged(bool busy);
     void onQueueSelectionChanged(const QItemSelection &selected, const QItemSelection &deselected);
 
@@ -57,7 +57,7 @@ private:
     /// Live transcript state for a file, held so switching back to a file that is
     /// still processing restores its partial text, not a blank pane.
     struct FileBuffer {
-        QVector<scribe::Segment> segments;
+        QVector<scribble::Segment> segments;
         QHash<QString, std::int64_t> labelToGlobal;
     };
 
@@ -68,15 +68,15 @@ private:
 
     void enqueuePaths(const QStringList &paths);
     void refreshSpeakerNames();
-    QVector<scribe::Segment> segmentsForFile(std::int64_t fileId);
+    QVector<scribble::Segment> segmentsForFile(std::int64_t fileId);
     std::shared_ptr<FileBuffer> bufferFor(std::int64_t fileId, bool create);
 
     void openGpuRuntime(bool autoInstall);
     void maybeOfferGpuRuntime();
 
-    void handleSegment(const scribe::EvSegment &ev);
-    void handleLabelled(const scribe::EvSegmentsLabelled &ev);
-    void handleResolved(const scribe::EvSpeakersResolved &ev);
+    void handleSegment(const scribble::EvSegment &ev);
+    void handleLabelled(const scribble::EvSegmentsLabelled &ev);
+    void handleResolved(const scribble::EvSpeakersResolved &ev);
 
     PipelineController *controller_ = nullptr;
 
@@ -115,4 +115,4 @@ private:
     QString lastFolderDir_;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

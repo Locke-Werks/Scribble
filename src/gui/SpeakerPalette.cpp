@@ -3,7 +3,7 @@
 #include <QHash>
 #include <array>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
@@ -39,4 +39,4 @@ QColor SpeakerPalette::unknown() {
     return QColor(0x94, 0x9c, 0xbb);
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

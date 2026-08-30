@@ -7,7 +7,7 @@
 
 #include "types.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Table of files in the batch, one row per job (a multi-track file yields
 /// several). Rows are keyed by file_id and updated in place as events arrive, so
@@ -42,11 +42,11 @@ public:
 
     void clear();
 
-    void onDiscovered(const scribe::MediaJob &job);
-    void onStarted(const scribe::MediaJob &job);
-    void onStage(std::int64_t fileId, scribe::Stage stage, double fraction,
+    void onDiscovered(const scribble::MediaJob &job);
+    void onStarted(const scribble::MediaJob &job);
+    void onStage(std::int64_t fileId, scribble::Stage stage, double fraction,
                  const QString &detail);
-    void onFinished(std::int64_t fileId, scribe::Stage finalStage, const QString &error);
+    void onFinished(std::int64_t fileId, scribble::Stage finalStage, const QString &error);
     void setSpeakerCount(std::int64_t fileId, int count);
 
     std::int64_t fileIdAt(int row) const;
@@ -58,7 +58,7 @@ private:
         int track = 0;
         int trackCount = 1;
         double duration = 0.0;
-        scribe::Stage stage = scribe::Stage::Queued;
+        scribble::Stage stage = scribble::Stage::Queued;
         double fraction = -1.0;
         int speakerCount = -1;
         QString detail;
@@ -76,4 +76,4 @@ private:
     QHash<std::int64_t, int> byId_;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

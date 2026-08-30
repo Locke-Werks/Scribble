@@ -8,7 +8,7 @@
 
 #include "config.hpp"
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -47,4 +47,4 @@ using DownloadProgress =
 bool resolve_model(const std::string &name, ModelKind kind, const fs::path &model_dir,
                    const DownloadProgress &progress, fs::path *out, std::string *error);
 
-}  // namespace scribe
+}  // namespace scribble

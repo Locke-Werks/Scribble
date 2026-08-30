@@ -2,19 +2,19 @@
 
 #include <QPlainTextEdit>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
-QString levelColor(scribe::LogLevel level) {
+QString levelColor(scribble::LogLevel level) {
     switch (level) {
-        case scribe::LogLevel::Debug:
+        case scribble::LogLevel::Debug:
             return QStringLiteral("#7a7f96");
-        case scribe::LogLevel::Info:
+        case scribble::LogLevel::Info:
             return QStringLiteral("#c6ccda");
-        case scribe::LogLevel::Warn:
+        case scribble::LogLevel::Warn:
             return QStringLiteral("#e5c890");
-        case scribe::LogLevel::Error:
+        case scribble::LogLevel::Error:
             return QStringLiteral("#e78284");
     }
     return QStringLiteral("#c6ccda");
@@ -35,10 +35,10 @@ LogDock::LogDock(QWidget *parent) : QDockWidget(QStringLiteral("Log"), parent) {
     setWidget(view_);
 }
 
-void LogDock::append(scribe::LogLevel level, const QString &text) {
+void LogDock::append(scribble::LogLevel level, const QString &text) {
     QString escaped = text.toHtmlEscaped();
     escaped.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-    const QString label = QString::fromUtf8(scribe::log_level_name(level));
+    const QString label = QString::fromUtf8(scribble::log_level_name(level));
     view_->appendHtml(QStringLiteral("<span style=\"color:%1\">[%2] %3</span>")
                           .arg(levelColor(level), label, escaped));
 }
@@ -47,4 +47,4 @@ void LogDock::clearLog() {
     view_->clear();
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

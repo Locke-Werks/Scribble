@@ -3,7 +3,7 @@
 #include <QString>
 #include <cmath>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Compact clock for durations shown in the queue: minutes:seconds, growing to
 /// hours only when the file is long enough to need it.
@@ -39,4 +39,4 @@ inline QString formatTimestamp(double seconds) {
     return QString::asprintf("%02lld:%02lld:%02lld.%03lld", h, m, s, ms);
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

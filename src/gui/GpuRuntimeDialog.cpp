@@ -13,7 +13,7 @@
 
 #include <string>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
@@ -37,22 +37,22 @@ QString formatBytes(std::int64_t bytes) {
     return QString::asprintf("%.1f %s", v, units[u]);
 }
 
-QString toQString(const scribe::fs::path &p) {
+QString toQString(const scribble::fs::path &p) {
     return QString::fromStdWString(p.wstring());
 }
 
 }  // namespace
 
-void GpuInstaller::install(scribe::GpuRuntimeStatus status) {
+void GpuInstaller::install(scribble::GpuRuntimeStatus status) {
     std::string error;
-    scribe::CancelToken fallback;
-    const scribe::CancelToken &cancel = cancel_ ? *cancel_ : fallback;
+    scribble::CancelToken fallback;
+    const scribble::CancelToken &cancel = cancel_ ? *cancel_ : fallback;
     const auto report = [this](const std::string &component, std::int64_t done,
                                std::int64_t total) {
         emit progress(QString::fromStdString(component), static_cast<qint64>(done),
                       static_cast<qint64>(total));
     };
-    const bool ok = scribe::install_gpu_runtime(status, report, cancel, &error);
+    const bool ok = scribble::install_gpu_runtime(status, report, cancel, &error);
     emit finished(ok, QString::fromStdString(error));
 }
 
@@ -133,10 +133,10 @@ GpuRuntimeDialog::~GpuRuntimeDialog() {
 }
 
 void GpuRuntimeDialog::refreshStatus() {
-    status_ = scribe::gpu_runtime_status();
+    status_ = scribble::gpu_runtime_status();
 
     locationLabel_->setText(
-        QStringLiteral("Install location: %1").arg(toQString(scribe::gpu_runtime_dir())));
+        QStringLiteral("Install location: %1").arg(toQString(scribble::gpu_runtime_dir())));
 
     if (status_.ready) {
         summaryLabel_->setText(
@@ -152,7 +152,7 @@ void GpuRuntimeDialog::refreshStatus() {
     summaryLabel_->setText(QString::fromStdString(status_.summary()));
     componentList_->setVisible(true);
     componentList_->clear();
-    for (const scribe::GpuComponent &c : status_.missing) {
+    for (const scribble::GpuComponent &c : status_.missing) {
         auto *item = new QTreeWidgetItem(componentList_);
         item->setText(0, QString::fromStdString(c.name));
         item->setText(1, formatBytes(c.download_bytes));
@@ -240,4 +240,4 @@ void GpuRuntimeDialog::setInstalling(bool installing) {
     }
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

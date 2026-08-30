@@ -5,7 +5,7 @@
 #include "paths.hpp"
 #include "sherpa-onnx/c-api/cxx-api.h"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 namespace sx = sherpa_onnx::cxx;
@@ -99,4 +99,4 @@ bool Separator::isolate_vocals(const WavData &input, WavData *vocals, std::strin
     return true;
 }
 
-}  // namespace scribe
+}  // namespace scribble

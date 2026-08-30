@@ -9,7 +9,7 @@
 #include <windows.h>
 #endif
 
-namespace scribe {
+namespace scribble {
 
 std::string quote_arg(const std::string &arg) {
     if (!arg.empty() && arg.find_first_of(" \t\n\v\"") == std::string::npos) {
@@ -174,4 +174,4 @@ fs::path find_system_tool(const std::string &name) {
     return {};
 }
 
-}  // namespace scribe
+}  // namespace scribble

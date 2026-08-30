@@ -8,7 +8,7 @@
 #include "events.hpp"
 #include "types.hpp"
 
-namespace scribe {
+namespace scribble {
 
 /// Thin wrapper over an EventSink so the pipeline can emit without repeating
 /// the variant construction at every call site.
@@ -69,4 +69,4 @@ private:
 void install_backend_log_capture(Reporter *reporter);
 void remove_backend_log_capture();
 
-}  // namespace scribe
+}  // namespace scribble

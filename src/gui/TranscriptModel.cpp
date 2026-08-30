@@ -2,7 +2,7 @@
 
 #include "SpeakerPalette.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 int TranscriptModel::rowCount(const QModelIndex &parent) const {
     return parent.isValid() ? 0 : rows_.size();
@@ -65,11 +65,11 @@ void TranscriptModel::setNameResolver(QHash<std::int64_t, QString> names) {
     refreshSpeakers();
 }
 
-void TranscriptModel::reset(const QVector<scribe::Segment> &segments) {
+void TranscriptModel::reset(const QVector<scribble::Segment> &segments) {
     beginResetModel();
     rows_.clear();
     rows_.reserve(segments.size());
-    for (const scribe::Segment &s : segments) {
+    for (const scribble::Segment &s : segments) {
         Row row;
         row.index = s.index;
         row.start = s.start;
@@ -82,7 +82,7 @@ void TranscriptModel::reset(const QVector<scribe::Segment> &segments) {
     endResetModel();
 }
 
-void TranscriptModel::appendSegment(const scribe::Segment &segment) {
+void TranscriptModel::appendSegment(const scribble::Segment &segment) {
     beginInsertRows({}, rows_.size(), rows_.size());
     Row row;
     row.index = segment.index;
@@ -108,7 +108,7 @@ void TranscriptModel::refreshRange(int first, int last) {
                      {SpeakerRole, ColorRole, HasSpeakerRole, SearchRole});
 }
 
-void TranscriptModel::applyLabelled(const QVector<scribe::Segment> &segments) {
+void TranscriptModel::applyLabelled(const QVector<scribble::Segment> &segments) {
     // The labelled set is the same utterances with speaker fields filled. Match
     // by segment index and update in place; if diarization split or merged the
     // set, fall back to a full reset so nothing is dropped.
@@ -152,4 +152,4 @@ void TranscriptModel::refreshSpeakers() {
     refreshRange(0, rows_.size() - 1);
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

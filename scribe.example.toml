@@ -1,7 +1,7 @@
-# ScribeEveryone configuration.
+# Scribble configuration.
 #
-# Copy to scribe.toml next to where you run it, or to
-# %LOCALAPPDATA%\ScribeEveryone\scribe.toml. Every key is optional and every one
+# Copy to scribble.toml next to where you run it, or to
+# %LOCALAPPDATA%\Scribble\scribble.toml. Every key is optional and every one
 # shown here is already the default, so an empty file behaves identically.
 #
 # Unknown keys are rejected rather than ignored. A typo here stops the program
@@ -9,8 +9,8 @@
 
 # -- paths --------------------------------------------------------------------
 # Leave these unset and they resolve to per-user locations that are actually
-# writable: transcripts in Documents\ScribeEveryone, everything else in
-# %LOCALAPPDATA%\ScribeEveryone. Set them and they resolve against wherever you
+# writable: transcripts in Documents\Scribble, everything else in
+# %LOCALAPPDATA%\Scribble. Set them and they resolve against wherever you
 # ran the program from.
 #
 # db_path is the important one. It is not a cache, it is the corpus: every
@@ -19,13 +19,13 @@
 # gone forever. Back it up.
 # out_dir   = "out"
 # work_dir  = "work"
-# db_path   = "scribe.db"
+# db_path   = "scribble.db"
 mirror_tree = true          # reproduce the input folder structure under out_dir
 keep_work   = false         # keep decoded wavs after a file finishes
 
 # -- transcription ------------------------------------------------------------
 backend   = "whisper"       # whisper | parakeet
-model     = "large-v3"      # see: scribe models
+model     = "large-v3"      # see: scribble models
 asr_accel = "auto"          # auto | cpu | cuda
 language  = ""              # empty detects per file, naming it is faster
 beam_size = 5
@@ -79,7 +79,7 @@ onnx_accel = "auto"                    # auto | cpu | cuda
 
 # GPU acceleration for those stages needs cuDNN, which NVIDIA does not let
 # anyone redistribute. prompt asks before downloading it, auto downloads without
-# asking, never stays on CPU. Roughly 1.2 GB. See: scribe gpu
+# asking, never stays on CPU. Roughly 1.2 GB. See: scribble gpu
 gpu_runtime = "prompt"                 # prompt | auto | never
 
 segmentation_model = "pyannote-segmentation-3.0"
@@ -102,14 +102,14 @@ embed_max_segments = 8
 # splitting into several identities.
 match_threshold  = 0.65
 
-# Pairs landing between review and match get reported by `scribe dupes` for a
+# Pairs landing between review and match get reported by `scribble dupes` for a
 # human to judge, rather than silently merged or silently split. This must stay
 # below match_threshold or the uncertain band is empty and nothing is ever
 # reported, which looks exactly like everything being fine. The program refuses
 # to start rather than let that happen.
 review_threshold = 0.50
 
-# Used by `scribe recluster`.
+# Used by `scribble recluster`.
 cluster_threshold = 0.65
 
 # -- multi-track --------------------------------------------------------------

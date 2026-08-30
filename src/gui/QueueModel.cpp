@@ -7,7 +7,7 @@
 
 #include "FormatUtil.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 int QueueModel::rowCount(const QModelIndex &parent) const {
     return parent.isValid() ? 0 : rows_.size();
@@ -42,20 +42,20 @@ QString QueueModel::displayName(const Row &row) const {
 
 int QueueModel::progressPercent(const Row &row) const {
     switch (row.stage) {
-        case scribe::Stage::Queued:
+        case scribble::Stage::Queued:
             return 0;
-        case scribe::Stage::Done:
-        case scribe::Stage::Skipped:
+        case scribble::Stage::Done:
+        case scribble::Stage::Skipped:
             return 100;
-        case scribe::Stage::Failed:
+        case scribble::Stage::Failed:
             break;  // hold whatever progress was reached
         default:
             break;
     }
     // Probing through Writing are the visible work stages. Map the stage ordinal
     // onto that span and add the intra-stage fraction when one is reported.
-    const int first = static_cast<int>(scribe::Stage::Probing);
-    const int last = static_cast<int>(scribe::Stage::Writing);
+    const int first = static_cast<int>(scribble::Stage::Probing);
+    const int last = static_cast<int>(scribble::Stage::Writing);
     const int span = last - first + 1;
     int ordinal = static_cast<int>(row.stage);
     if (ordinal < first) {
@@ -86,7 +86,7 @@ QVariant QueueModel::data(const QModelIndex &index, int role) const {
                 case ColumnDuration:
                     return formatDuration(row.duration);
                 case ColumnStage:
-                    return QString::fromUtf8(scribe::stage_name(row.stage));
+                    return QString::fromUtf8(scribble::stage_name(row.stage));
                 case ColumnSpeakers:
                     return row.speakerCount >= 0 ? QString::number(row.speakerCount) : QString();
                 default:
@@ -169,7 +169,7 @@ void QueueModel::touched(int row) {
     emit dataChanged(index(row, 0), index(row, ColumnCount - 1));
 }
 
-void QueueModel::onDiscovered(const scribe::MediaJob &job) {
+void QueueModel::onDiscovered(const scribble::MediaJob &job) {
     Row &row = ensureRow(job.file_id);
     row.path = QString::fromStdString(job.source_path);
     row.track = job.track;
@@ -180,7 +180,7 @@ void QueueModel::onDiscovered(const scribe::MediaJob &job) {
     touched(indexOf(job.file_id));
 }
 
-void QueueModel::onStarted(const scribe::MediaJob &job) {
+void QueueModel::onStarted(const scribble::MediaJob &job) {
     Row &row = ensureRow(job.file_id);
     row.path = QString::fromStdString(job.source_path);
     row.track = job.track;
@@ -188,29 +188,29 @@ void QueueModel::onStarted(const scribe::MediaJob &job) {
     row.duration = job.duration;
     row.failed = false;
     row.error.clear();
-    if (row.stage == scribe::Stage::Queued) {
-        row.stage = scribe::Stage::Probing;
+    if (row.stage == scribble::Stage::Queued) {
+        row.stage = scribble::Stage::Probing;
     }
     touched(indexOf(job.file_id));
 }
 
-void QueueModel::onStage(std::int64_t fileId, scribe::Stage stage, double fraction,
+void QueueModel::onStage(std::int64_t fileId, scribble::Stage stage, double fraction,
                          const QString &detail) {
     Row &row = ensureRow(fileId);
     row.stage = stage;
     row.fraction = fraction;
     row.detail = detail;
-    if (stage == scribe::Stage::Failed) {
+    if (stage == scribble::Stage::Failed) {
         row.failed = true;
     }
     touched(indexOf(fileId));
 }
 
-void QueueModel::onFinished(std::int64_t fileId, scribe::Stage finalStage, const QString &error) {
+void QueueModel::onFinished(std::int64_t fileId, scribble::Stage finalStage, const QString &error) {
     Row &row = ensureRow(fileId);
     row.stage = finalStage;
     row.fraction = -1.0;
-    if (finalStage == scribe::Stage::Failed) {
+    if (finalStage == scribble::Stage::Failed) {
         row.failed = true;
         row.error = error;
     }
@@ -223,4 +223,4 @@ void QueueModel::setSpeakerCount(std::int64_t fileId, int count) {
     touched(indexOf(fileId));
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

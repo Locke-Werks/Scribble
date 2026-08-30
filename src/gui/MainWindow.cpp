@@ -43,20 +43,20 @@
 #include "db.hpp"
 #include "gpu_runtime.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
-    setWindowTitle(QStringLiteral("ScribeEveryone"));
+    setWindowTitle(QStringLiteral("Scribble"));
     setAcceptDrops(true);
 
     controller_ = new PipelineController(this);
 
     // Load configuration before opening the database so the database path and
-    // every other tunable comes from the user's scribe.toml when it exists.
-    scribe::Config cfg;
-    const scribe::fs::path cfgPath = scribe::default_config_path();
+    // every other tunable comes from the user's scribble.toml when it exists.
+    scribble::Config cfg;
+    const scribble::fs::path cfgPath = scribble::default_config_path();
     std::string cfgError;
-    scribe::Config loaded = scribe::Config::load(cfgPath, &cfgError);
+    scribble::Config loaded = scribble::Config::load(cfgPath, &cfgError);
     if (cfgError.empty()) {
         cfg = loaded;
     }
@@ -67,7 +67,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
     connect(controller_, &PipelineController::scribeEvent, this, &MainWindow::onScribeEvent);
     connect(controller_, &PipelineController::busyChanged, this, &MainWindow::onBusyChanged);
     connect(controller_, &PipelineController::failed, this, [this](const QString &message) {
-        logDock_->append(scribe::LogLevel::Error, message);
+        logDock_->append(scribble::LogLevel::Error, message);
         statusBar()->showMessage(message, 8000);
     });
     connect(controller_, &PipelineController::runFinished, this, [this] {
@@ -76,14 +76,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         refreshSpeakerNames();
     });
     connect(controller_, &PipelineController::reclusterFinished, this, [this](const QString &s) {
-        logDock_->append(scribe::LogLevel::Info, s);
+        logDock_->append(scribble::LogLevel::Info, s);
         statusBar()->showMessage(s, 8000);
         speakerPanel_->refresh();
         refreshSpeakerNames();
     });
     connect(controller_, &PipelineController::rerenderFinished, this, [this](int count) {
         const QString msg = QStringLiteral("Re-rendered %1 file(s).").arg(count);
-        logDock_->append(scribe::LogLevel::Info, msg);
+        logDock_->append(scribble::LogLevel::Info, msg);
         statusBar()->showMessage(msg, 5000);
     });
 
@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         // or a stale config pointing somewhere that no longer exists. Falling
         // back to the per-user default keeps the application usable instead of
         // leaving an empty window behind a dismissed error box.
-        scribe::Config fallback = cfg;
+        scribble::Config fallback = cfg;
         fallback.db_path.clear();
         fallback.work_dir.clear();
 
@@ -102,14 +102,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         if (controller_->open(fallback, &fallbackError)) {
             cfg = controller_->config();
             logDock_->append(
-                scribe::LogLevel::Warn,
+                scribble::LogLevel::Warn,
                 QStringLiteral("Could not open the configured database (%1). Using %2 instead.")
                     .arg(openError, QString::fromStdWString(cfg.db_path.wstring())));
             speakerPanel_->setDatabase(controller_->database());
             refreshSpeakerNames();
         } else {
             QMessageBox::critical(
-                this, QStringLiteral("ScribeEveryone"),
+                this, QStringLiteral("Scribble"),
                 QStringLiteral("Could not open the database:\n%1\n\nThe fallback location "
                                "also failed:\n%2")
                     .arg(openError, fallbackError));
@@ -119,7 +119,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
         refreshSpeakerNames();
     }
     if (!cfgError.empty()) {
-        logDock_->append(scribe::LogLevel::Warn,
+        logDock_->append(scribble::LogLevel::Warn,
                          QStringLiteral("Configuration not loaded: %1")
                              .arg(QString::fromStdString(cfgError)));
     }
@@ -307,13 +307,13 @@ void MainWindow::buildActions() {
     auto *helpMenu = menuBar()->addMenu(QStringLiteral("Help"));
     auto *aboutAct = helpMenu->addAction(QStringLiteral("About"));
     connect(aboutAct, &QAction::triggered, this, [this] {
-#ifdef SCRIBE_VERSION
-        const QString ver = QStringLiteral(" " SCRIBE_VERSION);
+#ifdef SCRIBBLE_VERSION
+        const QString ver = QStringLiteral(" " SCRIBBLE_VERSION);
 #else
         const QString ver;
 #endif
-        QMessageBox::about(this, QStringLiteral("About ScribeEveryone"),
-                           QStringLiteral("ScribeEveryone%1\nBatch transcription with diarization "
+        QMessageBox::about(this, QStringLiteral("About Scribble"),
+                           QStringLiteral("Scribble%1\nBatch transcription with diarization "
                                           "and corpus-wide speaker identity.")
                                .arg(ver));
     });
@@ -371,11 +371,11 @@ void MainWindow::openSettings() {
     if (dialog.exec() != QDialog::Accepted) {
         return;
     }
-    const scribe::Config updated = dialog.config();
+    const scribble::Config updated = dialog.config();
     try {
-        updated.save(scribe::default_config_path());
+        updated.save(scribble::default_config_path());
     } catch (const std::exception &e) {
-        logDock_->append(scribe::LogLevel::Warn,
+        logDock_->append(scribble::LogLevel::Warn,
                          QStringLiteral("Could not save configuration: %1")
                              .arg(QString::fromUtf8(e.what())));
     }
@@ -420,22 +420,22 @@ void MainWindow::maybeOfferGpuRuntime() {
     }
     gpuOfferChecked_ = true;
 
-    const scribe::Config &cfg = controller_->config();
-    if (cfg.gpu_runtime == scribe::GpuRuntimeMode::Never) {
+    const scribble::Config &cfg = controller_->config();
+    if (cfg.gpu_runtime == scribble::GpuRuntimeMode::Never) {
         return;
     }
     // Isolation is the stage that benefits from the GPU regardless of the CPU,
     // so a run that will not isolate anything is not a reliable reason to offer.
-    if (cfg.isolate == scribe::IsolateMode::Never) {
+    if (cfg.isolate == scribble::IsolateMode::Never) {
         return;
     }
 
-    const scribe::GpuRuntimeStatus status = scribe::gpu_runtime_status();
+    const scribble::GpuRuntimeStatus status = scribble::gpu_runtime_status();
     if (status.ready) {
         return;
     }
 
-    if (cfg.gpu_runtime == scribe::GpuRuntimeMode::Auto) {
+    if (cfg.gpu_runtime == scribble::GpuRuntimeMode::Auto) {
         openGpuRuntime(true);
         return;
     }
@@ -456,7 +456,7 @@ void MainWindow::reviewDuplicates() {
     if (!controller_->database()) {
         return;
     }
-    const scribe::Config &cfg = controller_->config();
+    const scribble::Config &cfg = controller_->config();
     DuplicatesDialog dialog(controller_->database(), cfg.review_threshold, cfg.match_threshold,
                             this);
     connect(&dialog, &DuplicatesDialog::merged, this, &MainWindow::onSpeakersChanged);
@@ -491,11 +491,11 @@ std::shared_ptr<MainWindow::FileBuffer> MainWindow::bufferFor(std::int64_t fileI
     return buffer;
 }
 
-QVector<scribe::Segment> MainWindow::segmentsForFile(std::int64_t fileId) {
+QVector<scribble::Segment> MainWindow::segmentsForFile(std::int64_t fileId) {
     if (auto buffer = bufferFor(fileId, false); buffer && !buffer->segments.isEmpty()) {
         return buffer->segments;
     }
-    QVector<scribe::Segment> out;
+    QVector<scribble::Segment> out;
     if (controller_->database()) {
         for (const auto &s : controller_->database()->segments(fileId)) {
             out.push_back(s);
@@ -518,15 +518,15 @@ void MainWindow::onQueueSelectionChanged(const QItemSelection &selected, const Q
     transcript_->setSpeakerNames(speakerNames_);
 }
 
-void MainWindow::handleSegment(const scribe::EvSegment &ev) {
+void MainWindow::handleSegment(const scribble::EvSegment &ev) {
     auto buffer = bufferFor(ev.file_id, true);
     buffer->segments.push_back(ev.segment);
     transcript_->appendLiveSegment(ev.file_id, ev.segment);
 }
 
-void MainWindow::handleLabelled(const scribe::EvSegmentsLabelled &ev) {
+void MainWindow::handleLabelled(const scribble::EvSegmentsLabelled &ev) {
     auto buffer = bufferFor(ev.file_id, true);
-    QVector<scribe::Segment> labelled;
+    QVector<scribble::Segment> labelled;
     labelled.reserve(static_cast<int>(ev.segments.size()));
     QSet<QString> labels;
     for (const auto &s : ev.segments) {
@@ -540,14 +540,14 @@ void MainWindow::handleLabelled(const scribe::EvSegmentsLabelled &ev) {
     queueModel_->setSpeakerCount(ev.file_id, labels.size());
 }
 
-void MainWindow::handleResolved(const scribe::EvSpeakersResolved &ev) {
+void MainWindow::handleResolved(const scribble::EvSpeakersResolved &ev) {
     auto buffer = bufferFor(ev.file_id, true);
     QHash<QString, std::int64_t> map;
     for (const auto &r : ev.resolutions) {
         map.insert(QString::fromStdString(r.local_label), r.global_id);
     }
     buffer->labelToGlobal = map;
-    for (scribe::Segment &seg : buffer->segments) {
+    for (scribble::Segment &seg : buffer->segments) {
         const auto it = map.constFind(QString::fromStdString(seg.local_label));
         if (it != map.constEnd()) {
             seg.global_id = it.value();
@@ -561,28 +561,28 @@ void MainWindow::handleResolved(const scribe::EvSpeakersResolved &ev) {
     refreshSpeakerNames();
 }
 
-void MainWindow::onScribeEvent(const scribe::gui::ScribeEvent &e) {
+void MainWindow::onScribeEvent(const scribble::gui::ScribeEvent &e) {
     std::visit(
         [this](auto &&ev) {
             using T = std::decay_t<decltype(ev)>;
-            if constexpr (std::is_same_v<T, scribe::EvFileDiscovered>) {
+            if constexpr (std::is_same_v<T, scribble::EvFileDiscovered>) {
                 queueModel_->onDiscovered(ev.job);
-            } else if constexpr (std::is_same_v<T, scribe::EvFileStarted>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvFileStarted>) {
                 queueModel_->onStarted(ev.job);
-            } else if constexpr (std::is_same_v<T, scribe::EvStage>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvStage>) {
                 queueModel_->onStage(ev.file_id, ev.stage, ev.fraction,
                                      QString::fromStdString(ev.detail));
-            } else if constexpr (std::is_same_v<T, scribe::EvSegment>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvSegment>) {
                 handleSegment(ev);
-            } else if constexpr (std::is_same_v<T, scribe::EvSegmentsLabelled>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvSegmentsLabelled>) {
                 handleLabelled(ev);
-            } else if constexpr (std::is_same_v<T, scribe::EvSpeakersResolved>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvSpeakersResolved>) {
                 handleResolved(ev);
-            } else if constexpr (std::is_same_v<T, scribe::EvFileFinished>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvFileFinished>) {
                 queueModel_->onFinished(ev.file_id, ev.final_stage,
                                         QString::fromStdString(ev.error));
-                if (ev.final_stage == scribe::Stage::Failed) {
-                    logDock_->append(scribe::LogLevel::Error,
+                if (ev.final_stage == scribble::Stage::Failed) {
+                    logDock_->append(scribble::LogLevel::Error,
                                      QStringLiteral("File %1 failed: %2")
                                          .arg(ev.file_id)
                                          .arg(QString::fromStdString(ev.error)));
@@ -590,13 +590,13 @@ void MainWindow::onScribeEvent(const scribe::gui::ScribeEvent &e) {
                 // Free memory for finished files. The one on screen keeps its
                 // buffer, which already holds the fully resolved segments; other
                 // files reload from the database when reselected.
-                if (ev.final_stage != scribe::Stage::Failed &&
+                if (ev.final_stage != scribble::Stage::Failed &&
                     transcript_->currentFile() != ev.file_id) {
                     buffers_.remove(ev.file_id);
                 }
                 speakerPanel_->refresh();
                 refreshSpeakerNames();
-            } else if constexpr (std::is_same_v<T, scribe::EvRunProgress>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvRunProgress>) {
                 int pct = 0;
                 if (ev.audio_total > 0.0) {
                     pct = static_cast<int>(100.0 * ev.audio_done / ev.audio_total + 0.5);
@@ -608,9 +608,9 @@ void MainWindow::onScribeEvent(const scribe::gui::ScribeEvent &e) {
                                           .arg(ev.files_done)
                                           .arg(ev.files_total)
                                           .arg(ev.realtime_factor, 0, 'f', 1));
-            } else if constexpr (std::is_same_v<T, scribe::EvLog>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvLog>) {
                 logDock_->append(ev.level, QString::fromStdString(ev.text));
-            } else if constexpr (std::is_same_v<T, scribe::EvModelDownload>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvModelDownload>) {
                 if (ev.finished) {
                     modelLabel_->setVisible(false);
                     modelProgress_->setVisible(false);
@@ -628,14 +628,14 @@ void MainWindow::onScribeEvent(const scribe::gui::ScribeEvent &e) {
                         modelProgress_->setRange(0, 0);  // indeterminate
                     }
                 }
-            } else if constexpr (std::is_same_v<T, scribe::EvRunFinished>) {
+            } else if constexpr (std::is_same_v<T, scribble::EvRunFinished>) {
                 const QString msg =
                     QStringLiteral("Done: %1 finished, %2 failed, %3 skipped%4")
                         .arg(ev.files_done)
                         .arg(ev.files_failed)
                         .arg(ev.files_skipped)
                         .arg(ev.cancelled ? QStringLiteral(" (cancelled)") : QString());
-                logDock_->append(scribe::LogLevel::Info, msg);
+                logDock_->append(scribble::LogLevel::Info, msg);
                 statusLabel_->setText(msg);
             }
         },
@@ -695,4 +695,4 @@ void MainWindow::dropEvent(QDropEvent *event) {
     enqueuePaths(paths);
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

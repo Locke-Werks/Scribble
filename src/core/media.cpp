@@ -13,7 +13,7 @@
 #include <windows.h>
 #endif
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 const std::set<std::string> &media_extensions() {
@@ -275,4 +275,4 @@ std::vector<fs::path> discover_media(const std::vector<fs::path> &paths, bool re
     return {found.begin(), found.end()};
 }
 
-}  // namespace scribe
+}  // namespace scribble

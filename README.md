@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="assets/scribeeveryone.ico" width="96" alt="ScribeEveryone">
+<img src="assets/scribble.ico" width="96" alt="Scribble">
 
-# ScribeEveryone
+# Scribble
 
 **Transcribes a pile of audio and video, and gives every voice in it one identity that holds across the whole corpus.**
 
@@ -61,8 +61,8 @@ voiceprints, isolation and Parakeet go through onnxruntime, which wants
 of shipping it, this thing fetches it from NVIDIA for you:
 
 ```powershell
-scribe gpu           # what's missing, how big
-scribe gpu install
+scribble gpu           # what's missing, how big
+scribble gpu install
 ```
 
 About 1.2 GB. Lands in local app data. Asked for, not assumed. Until you do it,
@@ -72,10 +72,10 @@ way.
 ## Use
 
 ```powershell
-scribe run D:\recordings
-scribe speakers
-scribe name 12 "Will"
-scribe render
+scribble run D:\recordings
+scribble speakers
+scribble name 12 "Will"
+scribble render
 ```
 
 `run` walks folders recursively and skips what it already did. `speakers` lists
@@ -86,14 +86,14 @@ names are resolved when a file gets written rather than baked in like a fossil.
 Then the two that need a sentence:
 
 ```powershell
-scribe dupes
-scribe recluster
+scribble dupes
+scribble recluster
 ```
 
 `dupes` reports identity pairs that are close but not close enough for me to
 merge them without asking. Usually one person on two different devices, which no
 threshold anywhere fixes, so you get a shortlist instead of a guess. Confirm
-with `scribe merge <from> <into>`.
+with `scribble merge <from> <into>`.
 
 `recluster` regroups every voiceprint in one pass. Incremental matching assigns
 identities in arrival order, so the same corpus ingested in a different order
@@ -105,7 +105,7 @@ rather click.
 
 ## Configuration
 
-`scribe.toml` next to where you run it, or in `%LOCALAPPDATA%\ScribeEveryone`.
+`scribble.toml` next to where you run it, or in `%LOCALAPPDATA%\Scribble`.
 
 Unknown keys are rejected, not ignored. A typo stops the program with a message
 instead of silently doing something else for an hour and making you wonder why
@@ -125,7 +125,7 @@ has no hotword parameter so the list rides in on the initial prompt, and it
 fixes proper nouns, which are usually the only words anybody actually opens a
 transcript to find.
 
-[scribe.example.toml](scribe.example.toml) has everything, with commentary.
+[scribble.example.toml](scribble.example.toml) has everything, with commentary.
 
 ## Accuracy
 
@@ -150,7 +150,7 @@ Ranked by what actually moves word error rate, not by what sounds impressive:
 ### Parakeet
 
 ```powershell
-scribe run D:\recordings --backend parakeet
+scribble run D:\recordings --backend parakeet
 ```
 
 NVIDIA Parakeet TDT 0.6B v3 beats Whisper on the Open ASR Leaderboard for

@@ -2,7 +2,7 @@
 
 #include <QStyledItemDelegate>
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Draws a transcript line: a dim monospaced timestamp, an optional speaker chip
 /// in the speaker's colour, and the wrapped utterance text. The chip is absent
@@ -26,4 +26,4 @@ private:
     int viewportWidth_ = 0;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

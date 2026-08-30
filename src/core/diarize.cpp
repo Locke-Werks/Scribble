@@ -7,7 +7,7 @@
 #include "paths.hpp"
 #include "sherpa-onnx/c-api/cxx-api.h"
 
-namespace scribe {
+namespace scribble {
 namespace {
 
 namespace sx = sherpa_onnx::cxx;
@@ -186,4 +186,4 @@ void assign_speakers(std::vector<Segment> &segments, const std::vector<DiarizedT
     }
 }
 
-}  // namespace scribe
+}  // namespace scribble

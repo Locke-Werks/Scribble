@@ -11,7 +11,7 @@ class QProgressBar;
 class QPushButton;
 class QTreeWidget;
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 /// Runs install_gpu_runtime, which blocks for roughly a gigabyte of download and
 /// must not touch the GUI thread. It lives on its own QThread; the progress
@@ -24,16 +24,16 @@ public:
 
     /// The token is owned by the dialog and outlives the call; the worker only
     /// reads it to poll for a requested stop.
-    void setCancel(scribe::CancelToken *cancel) { cancel_ = cancel; }
+    void setCancel(scribble::CancelToken *cancel) { cancel_ = cancel; }
 
-    void install(scribe::GpuRuntimeStatus status);
+    void install(scribble::GpuRuntimeStatus status);
 
 signals:
     void progress(const QString &component, qint64 done, qint64 total);
     void finished(bool ok, const QString &error);
 
 private:
-    scribe::CancelToken *cancel_ = nullptr;
+    scribble::CancelToken *cancel_ = nullptr;
 };
 
 /// Tools entry and proactive offer for the downloadable GPU runtime. Shows what
@@ -62,8 +62,8 @@ private:
     void refreshStatus();
     void setInstalling(bool installing);
 
-    scribe::GpuRuntimeStatus status_;
-    scribe::CancelToken cancel_;
+    scribble::GpuRuntimeStatus status_;
+    scribble::CancelToken cancel_;
     bool installing_ = false;
     bool autoStart_ = false;
     bool shown_ = false;
@@ -81,4 +81,4 @@ private:
     QPushButton *closeButton_ = nullptr;
 };
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

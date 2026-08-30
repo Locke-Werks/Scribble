@@ -12,11 +12,11 @@
 #include "models.hpp"
 #include "paths.hpp"
 #include "pipeline.hpp"
-#include "scribe/version.hpp"
+#include "scribble/version.hpp"
 #include "speakers.hpp"
 #include "util.hpp"
 
-using namespace scribe;
+using namespace scribble;
 
 namespace {
 
@@ -126,23 +126,23 @@ private:
 
 void print_usage() {
     std::printf(
-        "ScribeEveryone %s\n"
+        "Scribble %s\n"
         "Batch transcription with diarization and corpus-wide speaker identity.\n"
         "\n"
         "Usage:\n"
-        "  scribe run <path>...        transcribe files and folders\n"
-        "  scribe speakers             list every speaker in the corpus\n"
-        "  scribe name <id> <name>     name a speaker\n"
-        "  scribe merge <from> <into>  fold one speaker into another\n"
-        "  scribe dupes                report speakers that may be the same person\n"
-        "  scribe dismiss <id> <id>    rule a pair out of future duplicate reports\n"
-        "  scribe recluster            regroup every voiceprint, keeping names\n"
-        "  scribe render               rewrite transcripts from the database\n"
-        "  scribe models               list downloadable models\n"
-        "  scribe gpu [install]        GPU acceleration for isolation and diarization\n"
+        "  scribble run <path>...        transcribe files and folders\n"
+        "  scribble speakers             list every speaker in the corpus\n"
+        "  scribble name <id> <name>     name a speaker\n"
+        "  scribble merge <from> <into>  fold one speaker into another\n"
+        "  scribble dupes                report speakers that may be the same person\n"
+        "  scribble dismiss <id> <id>    rule a pair out of future duplicate reports\n"
+        "  scribble recluster            regroup every voiceprint, keeping names\n"
+        "  scribble render               rewrite transcripts from the database\n"
+        "  scribble models               list downloadable models\n"
+        "  scribble gpu [install]        GPU acceleration for isolation and diarization\n"
         "\n"
         "Options:\n"
-        "  --config <file>     configuration file (default scribe.toml)\n"
+        "  --config <file>     configuration file (default scribble.toml)\n"
         "  --model <name>      transcription model (default large-v3)\n"
         "  --out <dir>         output directory\n"
         "  --db <file>         speaker and transcript database\n"
@@ -158,7 +158,7 @@ void print_usage() {
         "  --overwrite         redo files already marked done\n"
         "  --verbose           include backend debug output\n"
         "  --version           print version\n",
-        SCRIBE_VERSION_STRING);
+        SCRIBBLE_VERSION_STRING);
 }
 
 struct Args {
@@ -272,7 +272,7 @@ int cmd_dupes(Database &db, const Config &cfg) {
                     static_cast<long long>(p.left), p.left_display.c_str(),
                     static_cast<long long>(p.right), p.right_display.c_str());
     }
-    std::printf("\nMerge with: scribe merge <from> <into>\n");
+    std::printf("\nMerge with: scribble merge <from> <into>\n");
     return 0;
 }
 
@@ -331,7 +331,7 @@ int cmd_gpu(const Config &cfg, const std::vector<std::string> &args) {
     if (!install) {
         std::printf("\nWhisper already uses the GPU. This covers diarization, voiceprints,\n"
                     "isolation and Parakeet, which run through onnxruntime.\n"
-                    "\n  scribe gpu install\n");
+                    "\n  scribble gpu install\n");
         return 0;
     }
 
@@ -366,7 +366,7 @@ int main(int argc, char **argv) {
         return 2;
     }
     if (args.version) {
-        std::printf("ScribeEveryone %s\n", SCRIBE_VERSION_STRING);
+        std::printf("Scribble %s\n", SCRIBBLE_VERSION_STRING);
         return 0;
     }
     if (args.help || args.command.empty()) {
@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     }
 
     const fs::path root = fs::current_path();
-    fs::path config_path = args.config.empty() ? root / "scribe.toml" : fs::path(args.config);
+    fs::path config_path = args.config.empty() ? root / "scribble.toml" : fs::path(args.config);
     if (args.config.empty() && !fs::exists(config_path)) {
         config_path = default_config_path();
     }
@@ -492,7 +492,7 @@ int main(int argc, char **argv) {
         }
         if (args.command == "name") {
             if (args.positional.size() < 2) {
-                std::fprintf(stderr, "usage: scribe name <id> <name>\n");
+                std::fprintf(stderr, "usage: scribble name <id> <name>\n");
                 return 2;
             }
             db.rename_global(std::stoll(args.positional[0]),
@@ -502,7 +502,7 @@ int main(int argc, char **argv) {
         }
         if (args.command == "merge") {
             if (args.positional.size() != 2) {
-                std::fprintf(stderr, "usage: scribe merge <from> <into>\n");
+                std::fprintf(stderr, "usage: scribble merge <from> <into>\n");
                 return 2;
             }
             int moved = db.merge_globals(std::stoll(args.positional[0]),
@@ -512,7 +512,7 @@ int main(int argc, char **argv) {
         }
         if (args.command == "dismiss") {
             if (args.positional.size() != 2) {
-                std::fprintf(stderr, "usage: scribe dismiss <id> <id>\n");
+                std::fprintf(stderr, "usage: scribble dismiss <id> <id>\n");
                 return 2;
             }
             db.dismiss_pair(std::stoll(args.positional[0]), std::stoll(args.positional[1]));
@@ -537,7 +537,7 @@ int main(int argc, char **argv) {
         }
         if (args.command == "run") {
             if (args.positional.empty()) {
-                std::fprintf(stderr, "usage: scribe run <path>...\n");
+                std::fprintf(stderr, "usage: scribble run <path>...\n");
                 return 2;
             }
             std::vector<fs::path> paths;

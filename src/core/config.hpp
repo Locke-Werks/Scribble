@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-namespace scribe {
+namespace scribble {
 
 namespace fs = std::filesystem;
 
@@ -37,10 +37,10 @@ struct Config {
     // working directory of an installed application is its install directory,
     // and under Program Files that is read-only: the database would fail to
     // open on the first launch after installing.
-    fs::path out_dir;   ///< defaults to Documents\ScribeEveryone
+    fs::path out_dir;   ///< defaults to Documents\Scribble
     fs::path work_dir;  ///< defaults to the local app data directory
     fs::path db_path;   ///< defaults to the local app data directory
-    fs::path model_dir;  ///< empty resolves to %LOCALAPPDATA%\ScribeEveryone\models
+    fs::path model_dir;  ///< empty resolves to %LOCALAPPDATA%\Scribble\models
     bool mirror_tree = true;   ///< reproduce input folder structure under out_dir
     bool keep_work = false;    ///< keep decoded wavs after a file completes
 
@@ -135,7 +135,7 @@ struct Config {
     int decode_lookahead = 1;  ///< files to decode ahead of the GPU stage
 
     // -- loading ------------------------------------------------------------
-    /// Reads scribe.toml if present. Unknown keys are an error, not a warning:
+    /// Reads scribble.toml if present. Unknown keys are an error, not a warning:
     /// a silently ignored setting is worse than a failed start.
     static Config load(const fs::path &file, std::string *error);
     void save(const fs::path &file) const;
@@ -149,4 +149,4 @@ struct Config {
 fs::path default_model_dir();
 fs::path default_config_path();
 
-}  // namespace scribe
+}  // namespace scribble

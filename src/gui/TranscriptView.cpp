@@ -14,7 +14,7 @@
 #include "SegmentDelegate.hpp"
 #include "TranscriptModel.hpp"
 
-namespace scribe::gui {
+namespace scribble::gui {
 
 namespace {
 
@@ -108,7 +108,7 @@ void TranscriptView::scrollToBottomIfFollowing(bool wasAtBottom) {
     }
 }
 
-void TranscriptView::showFile(std::int64_t fileId, const QVector<scribe::Segment> &segments) {
+void TranscriptView::showFile(std::int64_t fileId, const QVector<scribble::Segment> &segments) {
     fileId_ = fileId;
     model_->reset(segments);
     heading_->setText(QStringLiteral("%1 segments").arg(segments.size()));
@@ -121,7 +121,7 @@ void TranscriptView::clearFile() {
     heading_->setText(QStringLiteral("No file selected"));
 }
 
-void TranscriptView::appendLiveSegment(std::int64_t fileId, const scribe::Segment &segment) {
+void TranscriptView::appendLiveSegment(std::int64_t fileId, const scribble::Segment &segment) {
     if (fileId != fileId_) {
         return;
     }
@@ -132,7 +132,7 @@ void TranscriptView::appendLiveSegment(std::int64_t fileId, const scribe::Segmen
 }
 
 void TranscriptView::applyLabelled(std::int64_t fileId,
-                                   const QVector<scribe::Segment> &segments) {
+                                   const QVector<scribble::Segment> &segments) {
     if (fileId != fileId_) {
         return;
     }
@@ -159,4 +159,4 @@ void TranscriptView::applyFilter(const QString &text) {
                            QRegularExpression::CaseInsensitiveOption));
 }
 
-}  // namespace scribe::gui
+}  // namespace scribble::gui

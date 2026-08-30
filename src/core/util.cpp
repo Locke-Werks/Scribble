@@ -11,7 +11,7 @@
 #include <windows.h>
 #endif
 
-namespace scribe {
+namespace scribble {
 
 std::string trim(std::string_view s) {
     const auto not_space = [](unsigned char c) { return !std::isspace(c); };
@@ -261,4 +261,4 @@ std::string narrow(std::wstring_view utf16) { return std::string(utf16.begin(), 
 
 #endif
 
-}  // namespace scribe
+}  // namespace scribble
