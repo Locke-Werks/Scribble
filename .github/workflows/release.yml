@@ -1,0 +1,285 @@
+name: release
+
+# Tagging is what ships. Everything below runs unattended from a tag push, and
+# the manual trigger exists so the long build can be exercised without minting a
+# release nobody wanted.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish a GitHub release at the end'
+        type: boolean
+        default: false
+
+env:
+  # Pinned so a Forge release cannot change what this job produces without
+  # someone choosing it. v0.3.0 is the floor: [[options]] and `when` in
+  # installer/installer.toml are silently ignored by anything older, which
+  # inverts them rather than switching them off.
+  FORGE_VERSION: v0.3.0
+  # Matches the toolkit the local release build uses. cublas64_13.dll and
+  # friends are copied out of this install and shipped, so a change here changes
+  # what lands on a user's disk.
+  CUDA_VERSION: '13.3.0'
+  QT_VERSION: '6.8.3'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    environment: release
+    timeout-minutes: 350
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The CUDA toolkit, Qt, a build tree carrying seven architectures' worth
+      # of device code, an 830 MB payload and a 500 MB installer do not fit
+      # beside the runner image's preinstalled SDKs. None of these are used by
+      # this build.
+      - name: Free disk space
+        shell: pwsh
+        run: |
+          $before = (Get-PSDrive C).Free / 1GB
+          $junk = @(
+            'C:\Android', 'C:\Program Files (x86)\Android',
+            'C:\hostedtoolcache\CodeQL',
+            'C:\Program Files\MongoDB', 'C:\Program Files\MySQL',
+            'C:\Program Files\PostgreSQL', 'C:\Program Files (x86)\PostgreSQL',
+            'C:\Miniconda', 'C:\Julia',
+            'C:\Program Files (x86)\Microsoft SDKs\Azure',
+            'C:\ProgramData\chocolatey\lib\mingw'
+          )
+          foreach ($p in $junk) {
+            if (Test-Path $p) { Remove-Item $p -Recurse -Force -ErrorAction SilentlyContinue }
+          }
+          $after = (Get-PSDrive C).Free / 1GB
+          "free: {0:N1} GB -> {1:N1} GB" -f $before, $after
+
+      - name: Install CUDA ${{ env.CUDA_VERSION }}
+        uses: Jimver/cuda-toolkit@v0.2.24
+        with:
+          cuda: ${{ env.CUDA_VERSION }}
+          method: 'network'
+          # The full toolkit is mostly samples and profilers. These are what
+          # nvcc needs to compile ggml's kernels and what the payload ships.
+          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust", "visual_studio_integration"]'
+
+      - name: Install Qt ${{ env.QT_VERSION }}
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          cache: true
+
+      # Shipped beside the program rather than left to PATH, so it has to exist
+      # on the runner for the staging step to find it.
+      - name: Install ffmpeg
+        shell: pwsh
+        run: |
+          choco install ffmpeg --no-progress -y
+          ffmpeg -version | Select-Object -First 1
+          ffprobe -version | Select-Object -First 1
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_PREFIX_PATH="$env:QT_ROOT_DIR"
+
+      # The long one. 141 CUDA translation units across seven architecture
+      # targets on a four core runner, plus sherpa-onnx and onnxruntime.
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release --parallel
+
+      - name: Verify the build is portable
+        shell: pwsh
+        run: |
+          # A build that picked up "native" would emit device code for the
+          # runner's GPU, and the runner has none. This is the check that the
+          # architecture pin in cmake/Dependencies.cmake actually took effect,
+          # and it is cheap next to discovering it from a user's bug report.
+          $cuobjdump = Join-Path $env:CUDA_PATH 'bin\cuobjdump.exe'
+          $exe = 'build/bin/Release/scribble.exe'
+
+          $sass = & $cuobjdump --list-elf $exe |
+            ForEach-Object { if ($_ -match 'sm_(\w+)\.cubin') { $Matches[1] } } | Sort-Object -Unique
+          $ptx = & $cuobjdump --list-ptx $exe |
+            ForEach-Object { if ($_ -match 'sm_(\w+)\.ptx') { $Matches[1] } } | Sort-Object -Unique
+
+          "device code: $($sass -join ', ')"
+          "PTX:         $($ptx -join ', ')"
+
+          # Ampere and Ada are the cards people actually own, Blackwell is what
+          # they are buying. These must be real device code.
+          foreach ($need in '86', '89', '120a', '121a') {
+            if ($sass -notcontains $need) { throw "sm_$need device code is missing; the CUDA architecture pin did not apply" }
+          }
+          # Turing, A100 and Hopper reach the GPU by JIT, so losing the PTX
+          # silently drops support for them without failing anything else.
+          foreach ($need in '75', '80', '90') {
+            if ($ptx -notcontains $need) { throw "sm_$need PTX is missing; those GPUs would have no JIT path" }
+          }
+
+      - name: Stage payload
+        shell: pwsh
+        run: |
+          ./scripts/stage-payload.ps1 -Config Release
+          if ($LASTEXITCODE -ne 0) { throw 'staging failed' }
+
+      # Only our own binaries. Everything else in the payload belongs to Qt,
+      # NVIDIA, Microsoft or ffmpeg, and the signing action takes a folder, so
+      # ours are isolated into one rather than filtered.
+      - name: Collect our binaries for signing
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build/tosign | Out-Null
+          Get-Content build/payload-ours.txt |
+            Where-Object { $_ -and $_.Trim() } |
+            ForEach-Object { Copy-Item $_ build/tosign/ }
+          Get-ChildItem build/tosign | Select-Object Name, Length
+
+      # Before forging. Forge hashes payload members into the container and
+      # extracts them verbatim, so an unsigned binary going in stays unsigned on
+      # the installed machine, and signing the finished installer does nothing
+      # for it.
+      - name: Sign the payload
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          azure-client-id: ${{ vars.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net
+          trusted-signing-account-name: specterpoint
+          certificate-profile-name: specterpoint
+          files-folder: build/tosign
+          files-folder-filter: exe,dll
+          file-digest: SHA256
+          # Certificates are valid for three days. Without the timestamp the
+          # signature stops validating within the week.
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Return signed binaries to the payload
+        shell: pwsh
+        run: |
+          Get-ChildItem build/tosign -File | ForEach-Object {
+            $sig = Get-AuthenticodeSignature $_.FullName
+            if ($sig.Status -ne 'Valid') { throw "$($_.Name) is $($sig.Status) after signing" }
+            Copy-Item $_.FullName build/payload/ -Force
+          }
+          "payload members signed: $((Get-ChildItem build/tosign -File).Count)"
+
+      # lwstub.exe ships signed in the Forge release, which is what makes the
+      # embedded uninstaller signed without a second pass here. Forge is public,
+      # so the default token is enough; a PAT is not the fix if this fails.
+      - name: Fetch Forge
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download $env:FORGE_VERSION --repo Locke-Werks/Forge `
+            --pattern '*.exe' --dir tools
+          foreach ($name in 'lwforge.exe', 'lwstub.exe') {
+            $sig = Get-AuthenticodeSignature "tools/$name"
+            "$name : $($sig.Status)"
+            if ($sig.Status -ne 'Valid') { throw "tools/$name is $($sig.Status)" }
+          }
+
+      # No --sign: that flag shells out to scripts/sign.ps1 resolved against the
+      # working directory, which only works inside the Forge repo. Paths are
+      # relative because lwforge resolves product.icon against the config file
+      # and that resolution fails with 0x7b when --config is absolute.
+      - name: Forge the installer
+        shell: pwsh
+        run: |
+          ./tools/lwforge.exe build `
+            --config installer\installer.toml `
+            --payload build\payload `
+            --stub tools\lwstub.exe `
+            --out build\Scribble-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw "lwforge exited $LASTEXITCODE" }
+
+      # Last, after resource stamping and the container append have already
+      # rewritten the image.
+      - name: Sign the installer
+        uses: azure/trusted-signing-action@v0
+        with:
+          azure-tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          azure-client-id: ${{ vars.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: https://eus.codesigning.azure.net
+          trusted-signing-account-name: specterpoint
+          certificate-profile-name: specterpoint
+          files-folder: build
+          files-folder-filter: exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Verify the installer
+        shell: pwsh
+        run: |
+          $sig = Get-AuthenticodeSignature build/Scribble-Setup.exe
+          "installer: $($sig.Status)"
+          "signer:    $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "installer is $($sig.Status)" }
+
+          # Signing appended a certificate table after the container. This
+          # proves it did not orphan the payload.
+          ./tools/lwforge.exe inspect build\Scribble-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw 'the signed installer cannot read its own container' }
+
+          # Catches a renamed or dropped option id, and also catches the version
+          # pin slipping below v0.3.0: a Forge build with no option support
+          # prints no options block here at all, rather than failing, which is
+          # how `when` ends up firing unconditionally in a shipped installer.
+          $inspect = & ./tools/lwforge.exe inspect build\Scribble-Setup.exe | Out-String
+          foreach ($id in 'desktop_shortcut', 'add_to_path') {
+            if ($inspect -notmatch [regex]::Escape($id)) {
+              throw "option '$id' is not declared in the forged container"
+            }
+          }
+          if ($inspect -notmatch 'options\.count\s+2') {
+            throw "expected 2 declared options; the container reports otherwise"
+          }
+          'options: desktop_shortcut, add_to_path'
+
+          # The runtime equivalent of the check above. install.elevation is
+          # "required", so this only runs where the job is already elevated.
+          # A launch failure is environmental and the container check above has
+          # already proven the option surface, so it does not fail the release.
+          try {
+            $p = Start-Process -FilePath 'build\Scribble-Setup.exe' `
+                   -ArgumentList '--check-only', '/O:desktop_shortcut=off', '/O:add_to_path=on' `
+                   -Wait -PassThru -NoNewWindow -ErrorAction Stop
+            if ($p.ExitCode -ne 0) { throw "check-only exited $($p.ExitCode)" }
+            'check-only: ok'
+          } catch [System.ComponentModel.Win32Exception] {
+            "check-only: skipped, could not launch elevated ($($_.Exception.Message))"
+          }
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Scribble-Setup
+          path: build/Scribble-Setup.exe
+          retention-days: 14
+
+      - name: Publish
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF_NAME } else { "v$(Get-Date -Format yyyyMMddHHmm)" }
+          gh release create $tag build/Scribble-Setup.exe `
+            --repo "${{ github.repository }}" `
+            --title "Scribble $tag" `
+            --generate-notes

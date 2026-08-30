@@ -22,7 +22,11 @@
 
 param(
     [string]$Config = 'Release',
-    [switch]$SkipSign
+    [switch]$SkipSign,
+    # Where a local Forge build tree lives. Only needed for local packaging; CI
+    # takes the signed lwforge.exe and lwstub.exe from the Forge release
+    # instead. See .github/workflows/release.yml.
+    [string]$ForgeRoot = $env:FORGE_ROOT
 )
 
 Set-StrictMode -Version Latest
@@ -39,13 +43,23 @@ if (-not (Test-Path $BinDir)) {
     exit 1
 }
 
-$Stub = Get-ChildItem '..\Forge\build' -Recurse -Filter 'lwstub.exe' `
+if (-not $ForgeRoot) {
+    # Checked out beside this repo is the usual arrangement. Set FORGE_ROOT or
+    # pass -ForgeRoot if Forge lives somewhere else.
+    $ForgeRoot = Join-Path (Split-Path -Parent $RepoRoot) 'Forge'
+}
+if (-not (Test-Path $ForgeRoot)) {
+    Write-Error "Forge not found at $ForgeRoot. Set FORGE_ROOT or pass -ForgeRoot."
+    exit 1
+}
+
+$Stub = Get-ChildItem $ForgeRoot -Recurse -Filter 'lwstub.exe' `
     -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -notlike '*Debug*' } |
     Sort-Object LastWriteTime -Descending |
     Select-Object -First 1
 
-$Forge = Get-ChildItem '..\Forge\build' -Recurse -Filter 'lwforge.exe' `
+$Forge = Get-ChildItem $ForgeRoot -Recurse -Filter 'lwforge.exe' `
     -ErrorAction SilentlyContinue |
     Where-Object { $_.FullName -notlike '*Debug*' } |
     Sort-Object LastWriteTime -Descending |
@@ -53,92 +67,27 @@ $Forge = Get-ChildItem '..\Forge\build' -Recurse -Filter 'lwforge.exe' `
 
 foreach ($tool in @($Stub, $Forge)) {
     if (-not $tool) {
-        Write-Error 'lwstub.exe or lwforge.exe not found. Build Forge first.'
+        Write-Error "lwstub.exe or lwforge.exe not found under $ForgeRoot. Build Forge first."
         exit 1
     }
 }
 
-Write-Host "Staging payload" -ForegroundColor Cyan
-Remove-Item $Payload -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $Payload | Out-Null
-
-# Program, its own libraries, and the Qt runtime windeployqt already staged.
-$exclude = @('onnxruntime_providers_cuda.dll', 'onnxruntime_providers_tensorrt.dll')
-Get-ChildItem $BinDir -File |
-    Where-Object { $_.Extension -in '.exe', '.dll' } |
-    Where-Object { $_.Name -notin $exclude } |
-    ForEach-Object { Copy-Item $_.FullName $Payload }
-
-foreach ($dir in 'platforms', 'styles', 'imageformats', 'iconengines', 'tls',
-                 'networkinformation', 'generic') {
-    $src = Join-Path $BinDir $dir
-    if (Test-Path $src) {
-        Copy-Item $src (Join-Path $Payload $dir) -Recurse
-    }
-}
-
-# ffmpeg is a hard runtime dependency for every input file, so it ships rather
-# than being left to PATH. paths.cpp looks beside the executable first.
-foreach ($tool in 'ffmpeg', 'ffprobe') {
-    $found = Get-Command $tool -ErrorAction SilentlyContinue
-    if (-not $found) {
-        Write-Error "$tool not found on PATH."
-        exit 1
-    }
-    $real = $found.Source
-    # Chocolatey installs shims that are a few kilobytes and only work with the
-    # chocolatey layout present, so the real binary is resolved behind them.
-    if ((Get-Item $real).Length -lt 1MB) {
-        $candidate = Get-ChildItem 'C:\ProgramData\chocolatey\lib' -Recurse -Filter "$tool.exe" `
-            -ErrorAction SilentlyContinue |
-            Sort-Object Length -Descending | Select-Object -First 1
-        if ($candidate) { $real = $candidate.FullName }
-    }
-    Copy-Item $real (Join-Path $Payload "$tool.exe")
-}
-
-# whisper.cpp links cuBLAS as a hard import, so the program will not start
-# without these even to run on CPU.
-$cudaBin = Get-ChildItem 'C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA' -Directory |
-    Sort-Object Name -Descending |
-    ForEach-Object { Join-Path $_.FullName 'bin\x64' } |
-    Where-Object { Test-Path (Join-Path $_ 'cublas64_13.dll') } |
-    Select-Object -First 1
-
-if (-not $cudaBin) {
-    Write-Error 'CUDA redistributable DLLs not found.'
+# Staging lives in its own script so the release workflow assembles the same
+# payload this does. See scripts/stage-payload.ps1.
+$OursList = Join-Path $RepoRoot 'build\payload-ours.txt'
+& (Join-Path $PSScriptRoot 'stage-payload.ps1') `
+    -Config $Config -BinDir $BinDir -Payload $Payload -OurBinariesList $OursList
+if ($LASTEXITCODE -ne 0) {
+    Write-Error 'Staging the payload failed.'
     exit 1
 }
-foreach ($dll in 'cublas64_13.dll', 'cublasLt64_13.dll', 'cudart64_13.dll') {
-    Copy-Item (Join-Path $cudaBin $dll) $Payload
-}
-
-Copy-Item (Join-Path $RepoRoot 'LICENSE') (Join-Path $Payload 'LICENSE.txt')
-
-$size = (Get-ChildItem $Payload -Recurse -File | Measure-Object Length -Sum).Sum
-$count = (Get-ChildItem $Payload -Recurse -File).Count
-Write-Host ("  {0} files, {1:N0} MB" -f $count, ($size / 1MB))
 
 # Payload members are extracted verbatim, so they must be signed here, before
 # forging. Signing the installer does nothing for the files inside it, and a
 # rebuild produces unsigned binaries every time, so this cannot be left to a
 # separate step that someone remembers to run.
 if (-not $SkipSign) {
-    $ours = Get-ChildItem $Payload -File |
-        Where-Object { $_.Extension -in '.exe', '.dll' } |
-        Where-Object { $_.Name -notlike 'Qt6*' } |
-        Where-Object { $_.Name -notlike 'onnxruntime*' } |
-        Where-Object { $_.Name -notlike 'cublas*' } |
-        Where-Object { $_.Name -notlike 'cudart*' } |
-        Where-Object { $_.Name -notlike 'opengl32sw*' } |
-        Where-Object { $_.Name -notlike 'D3Dcompiler*' } |
-        Where-Object { $_.Name -notlike 'dxcompiler*' } |
-        Where-Object { $_.Name -notlike 'dxil*' } |
-        # ffmpeg is a third-party redistributable. Stamping our certificate on
-        # someone else's binary claims an authorship we do not have.
-        Where-Object { $_.BaseName -notin 'ffmpeg', 'ffprobe' } |
-        ForEach-Object { $_.FullName }
-
+    $ours = @(Get-Content $OursList | Where-Object { $_ -and $_.Trim() })
     if ($ours) {
         & (Join-Path $PSScriptRoot 'sign.ps1') @ours
         if ($LASTEXITCODE -ne 0) {
