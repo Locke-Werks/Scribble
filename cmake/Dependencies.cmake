@@ -48,8 +48,34 @@ set(WHISPER_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(WHISPER_BUILD_SERVER   OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED_LIBS      OFF CACHE BOOL "" FORCE)
+
+# GGML_NATIVE tunes the CPU backend to whichever machine happens to be running
+# the compiler, so the same commit produces a different binary on a build box
+# than it does on a CI runner, and neither one is reproducible. Pin the baseline
+# instead. AVX2 + FMA + F16C costs nothing in reach here: the installer already
+# refuses anything below Windows 11, and every CPU Microsoft supports for
+# Windows 11 has AVX2. Without this the build lands on the SSE2 baseline and
+# leaves CPU decoding slower than it needs to be.
+set(GGML_NATIVE OFF CACHE BOOL "" FORCE)
+set(GGML_AVX    ON  CACHE BOOL "" FORCE)
+set(GGML_AVX2   ON  CACHE BOOL "" FORCE)
+set(GGML_FMA    ON  CACHE BOOL "" FORCE)
+set(GGML_F16C   ON  CACHE BOOL "" FORCE)
+set(GGML_AVX512 OFF CACHE BOOL "" FORCE)
+
 if(SCRIBBLE_CUDA)
     set(GGML_CUDA ON CACHE BOOL "" FORCE)
+
+    # Without this ggml picks "native", which means device code for the GPU in
+    # the build machine and nothing else. A 4090 build emits sm_89 cubins, no
+    # PTX, and fails on every other card with no JIT path to fall back to. On a
+    # CI runner, which has no GPU at all, the detection returns garbage.
+    #
+    # This is ggml's own portable list for CUDA 13, which dropped Maxwell,
+    # Pascal and Volta, so Turing is the floor. -real is device code for cards
+    # people actually own, -virtual is PTX so anything else JITs on first run.
+    set(CMAKE_CUDA_ARCHITECTURES "75-virtual;80-virtual;86-real;89-real;90-virtual;120a-real;121a-real"
+        CACHE STRING "" FORCE)
     # ggml defaults to -cudart static, and cudart_static.lib is built against
     # the static CRT, which is the remaining source of the LNK4098 LIBCMT
     # conflict once sherpa-onnx is on /MD. cuBLAS is already a dynamic runtime
