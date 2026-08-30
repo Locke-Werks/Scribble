@@ -19,10 +19,11 @@ env:
   # installer/installer.toml are silently ignored by anything older, which
   # inverts them rather than switching them off.
   FORGE_VERSION: v0.3.0
-  # Matches the toolkit the local release build uses. cublas64_13.dll and
-  # friends are copied out of this install and shipped, so a change here changes
-  # what lands on a user's disk.
-  CUDA_VERSION: '13.3.0'
+  # Matches the toolkit the local release build uses, down to the patch release,
+  # because cublas64_13.dll and friends are copied out of this install and
+  # shipped. CUDA 13 support arrived in cuda-toolkit v0.2.36; older releases of
+  # that action fail with "Version not available" rather than falling back.
+  CUDA_VERSION: '13.3.1'
   QT_VERSION: '6.8.3'
 
 jobs:
@@ -60,7 +61,7 @@ jobs:
           "free: {0:N1} GB -> {1:N1} GB" -f $before, $after
 
       - name: Install CUDA ${{ env.CUDA_VERSION }}
-        uses: Jimver/cuda-toolkit@v0.2.24
+        uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'network'
