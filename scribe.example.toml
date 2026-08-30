@@ -14,7 +14,9 @@
 # ran the program from.
 #
 # db_path is the important one. It is not a cache, it is the corpus: every
-# transcript, every voiceprint, every name you have typed. Back it up.
+# transcript, every voiceprint, every name you typed. Lose it and your SRTs
+# still exist, but the fact that speaker 4 on Tuesday is speaker 9 on Friday is
+# gone forever. Back it up.
 # out_dir   = "out"
 # work_dir  = "work"
 # db_path   = "scribe.db"
@@ -34,20 +36,21 @@ beam_size = 5
 condition_on_previous_text = false
 temperature_fallback       = true
 
-# Voice activity detection, and do not turn this off.
+# Voice activity detection. Leave it on. Seriously.
 #
-# Whisper is a language model with an audio encoder bolted on. Give it four
-# minutes of room tone and it will produce a confident, fluent, grammatically
-# perfect sentence that nobody said, and then repeat it a hundred times, quite
-# possibly in Norwegian. This is not a bug in your file. VAD stops those windows
-# reaching the decoder at all, which is the only thing that reliably helps.
+# Whisper is a language model with an audio encoder taped to the front. Give it four
+# minutes of room tone and it does what language models do: invents a fluent,
+# confident, grammatically flawless sentence nobody said, then repeats it a
+# hundred times, possibly in Norwegian. Ask me how I know. VAD stops those
+# windows reaching the decoder at all. It is the only thing that works.
 vad_filter = true
 
 # The single highest return per second of effort in this entire file.
 #
 # Whisper has no hotword parameter, so these ride in on the initial prompt. They
 # fix proper nouns, which are usually the only words anyone actually cares about
-# getting right. Names, places, jargon, that one acronym your industry loves.
+# to find. Names, places, jargon, that acronym your industry will not shut up
+# about.
 hotwords       = []
 initial_prompt = ""
 
@@ -115,8 +118,8 @@ cluster_threshold = 0.65
 # diarization and better transcription.
 #
 # An ordinary stereo mix is NOT that. Both channels carry the same sources, and
-# splitting one gives you two half transcripts of the same conversation and
-# double the processing time. Hence off by default.
+# splitting one buys you two half transcripts of one conversation at double the
+# processing time. This shipped on by default exactly once. Never again.
 split_channels       = false
 max_split_channels   = 8
 # How unlike each other two channels must be to count as separate microphones.
