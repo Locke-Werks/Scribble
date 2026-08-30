@@ -97,6 +97,26 @@ public:
     /// Global speakers whose files overlap the given file.
     std::vector<std::int64_t> globals_in_file(std::int64_t file_id) const;
 
+    // -- destructive ---------------------------------------------------------
+    /// Deletes every file, segment, speaker and dismissal, leaving an empty
+    /// schema. Transcripts already written to disk are untouched, but the
+    /// identities behind them are gone, so re-rendering after this produces
+    /// unattributed text.
+    void clear_all();
+
+    /// Copies the database through SQLite's backup API, which is safe while
+    /// connections are open, unlike copying the file and hoping the WAL agrees.
+    bool backup_to(const fs::path &dest, std::string *error);
+
+    /// Row counts, for telling someone what they are about to destroy.
+    struct Counts {
+        int files = 0;
+        int segments = 0;
+        int speakers = 0;
+        int named_speakers = 0;
+    };
+    Counts counts() const;
+
     // -- duplicate review ---------------------------------------------------
     /// Records that a human compared two identities and ruled them out, so the
     /// pair stops being offered on every subsequent review.

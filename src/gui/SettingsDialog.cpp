@@ -382,11 +382,25 @@ QWidget *SettingsDialog::buildIdentityTab() {
     clusterThreshold_->setToolTip(
         QStringLiteral("Distance threshold for the offline reclustering pass."));
 
+    reclusterAfterBatch_ =
+        new QCheckBox(QStringLiteral("Recluster and re-render when a batch finishes"), tab);
+    reclusterAfterBatch_->setChecked(base_.recluster_after_batch);
+    reclusterAfterBatch_->setToolTip(
+        QStringLiteral("Matching happens in arrival order while a batch runs, so whoever "
+                       "appears first defines each identity and the grouping ends up "
+                       "arbitrary. Reclustering reconciles it, keeping every name you have "
+                       "entered.\n\n"
+                       "The re-render is part of the same step because reclustering can move "
+                       "a speaker to a different identity, which makes transcripts already "
+                       "written to disk stale. Only files whose speakers actually changed "
+                       "trigger a rewrite."));
+
     form->addRow(QStringLiteral("Min embed segment"), embedMinSegment_);
     form->addRow(QStringLiteral("Max embed segments"), embedMaxSegments_);
     form->addRow(QStringLiteral("Match threshold"), matchThreshold_);
     form->addRow(QStringLiteral("Review threshold"), reviewThreshold_);
     form->addRow(QStringLiteral("Cluster threshold"), clusterThreshold_);
+    form->addRow(QString(), reclusterAfterBatch_);
     return tab;
 }
 
@@ -488,6 +502,7 @@ scribble::Config SettingsDialog::config() const {
     c.match_threshold = static_cast<float>(matchThreshold_->value());
     c.review_threshold = static_cast<float>(reviewThreshold_->value());
     c.cluster_threshold = static_cast<float>(clusterThreshold_->value());
+    c.recluster_after_batch = reclusterAfterBatch_->isChecked();
 
     // Rebuild formats from the checkboxes, preserving any format the dialog does
     // not surface so an unusual configured value is not silently dropped.

@@ -778,6 +778,78 @@ std::vector<std::pair<std::int64_t, std::int64_t>> Database::dismissed_pairs() c
     return out;
 }
 
+// -- destructive ------------------------------------------------------------
+
+void Database::clear_all() {
+    // Ordered so foreign keys never block a delete, then vacuumed because the
+    // usual reason to clear is that the file filled up with a bad batch.
+    impl_->exec(
+        "BEGIN IMMEDIATE;"
+        "DELETE FROM outputs;"
+        "DELETE FROM segments;"
+        "DELETE FROM local_speakers;"
+        "DELETE FROM global_speakers;"
+        "DELETE FROM dismissed_pairs;"
+        "DELETE FROM files;"
+        "COMMIT;");
+    impl_->exec("VACUUM");
+}
+
+bool Database::backup_to(const fs::path &dest, std::string *error) {
+    std::error_code ec;
+    if (dest.has_parent_path()) {
+        fs::create_directories(dest.parent_path(), ec);
+    }
+
+    sqlite3 *out = nullptr;
+    if (sqlite3_open_v2(dest.string().c_str(), &out,
+                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK) {
+        if (error) {
+            *error = out ? sqlite3_errmsg(out) : "cannot open backup destination";
+        }
+        sqlite3_close(out);
+        return false;
+    }
+
+    sqlite3_backup *backup = sqlite3_backup_init(out, "main", impl_->db, "main");
+    if (backup == nullptr) {
+        if (error) {
+            *error = sqlite3_errmsg(out);
+        }
+        sqlite3_close(out);
+        return false;
+    }
+
+    sqlite3_backup_step(backup, -1);
+    const int rc = sqlite3_backup_finish(backup);
+    if (rc != SQLITE_OK && error) {
+        *error = sqlite3_errmsg(out);
+    }
+    sqlite3_close(out);
+
+    if (rc != SQLITE_OK) {
+        fs::remove(dest, ec);
+        return false;
+    }
+    return true;
+}
+
+Database::Counts Database::counts() const {
+    Counts c;
+    Stmt s(impl_->db,
+           "SELECT (SELECT COUNT(*) FROM files),"
+           "       (SELECT COUNT(*) FROM segments),"
+           "       (SELECT COUNT(*) FROM global_speakers),"
+           "       (SELECT COUNT(*) FROM global_speakers WHERE name != '')");
+    if (s.step()) {
+        c.files = static_cast<int>(s.col_int(0));
+        c.segments = static_cast<int>(s.col_int(1));
+        c.speakers = static_cast<int>(s.col_int(2));
+        c.named_speakers = static_cast<int>(s.col_int(3));
+    }
+    return c;
+}
+
 // -- outputs ----------------------------------------------------------------
 void Database::record_output(std::int64_t file_id, const std::string &format,
                              const std::string &path) {

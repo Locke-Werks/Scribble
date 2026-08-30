@@ -251,6 +251,7 @@ Config Config::load(const fs::path &file, std::string *error) {
     get_float("match_threshold", cfg.match_threshold);
     get_float("review_threshold", cfg.review_threshold);
     get_float("cluster_threshold", cfg.cluster_threshold);
+    get_bool("recluster_after_batch", cfg.recluster_after_batch);
 
     get_bool("split_channels", cfg.split_channels);
     get_int("max_split_channels", cfg.max_split_channels);
@@ -274,7 +275,7 @@ Config Config::load(const fs::path &file, std::string *error) {
         "embedding_model",
         "num_speakers", "min_speakers", "max_speakers", "diar_cluster_threshold",
         "embed_min_segment", "embed_max_segments", "match_threshold",
-        "review_threshold", "cluster_threshold",
+        "review_threshold", "cluster_threshold", "recluster_after_batch",
         "split_channels", "max_split_channels", "channel_independence",
         "formats", "overwrite", "recursive", "decode_lookahead",
     };
@@ -353,7 +354,8 @@ void Config::save(const fs::path &file) const {
     out << "embed_max_segments = " << embed_max_segments << "\n";
     out << "match_threshold    = " << match_threshold << "\n";
     out << "review_threshold   = " << review_threshold << "\n";
-    out << "cluster_threshold  = " << cluster_threshold << "\n\n";
+    out << "cluster_threshold  = " << cluster_threshold << "\n";
+    out << "recluster_after_batch = " << (recluster_after_batch ? "true" : "false") << "\n\n";
 
     out << "split_channels          = " << (split_channels ? "true" : "false") << "\n";
     out << "max_split_channels      = " << max_split_channels << "\n";

@@ -84,6 +84,7 @@ private:
     QDoubleSpinBox *matchThreshold_ = nullptr;
     QDoubleSpinBox *reviewThreshold_ = nullptr;
     QDoubleSpinBox *clusterThreshold_ = nullptr;
+    QCheckBox *reclusterAfterBatch_ = nullptr;
 
     // Output
     QHash<QString, QCheckBox *> formats_;

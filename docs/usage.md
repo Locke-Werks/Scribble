@@ -79,6 +79,33 @@ Speaker names are not baked into your SRTs. They get resolved when the file is
 written. Rename somebody, hit this, done. That's the whole feature, and it's the
 only reason renaming isn't a four hour reprocess.
 
+### Clear database
+
+Tools > Clear database. Deletes every file, transcript segment and speaker.
+
+It tells you exactly what it's about to destroy, and writes a timestamped
+backup next to the database first, so the panic afterwards is survivable. The
+transcript files already on disk are untouched, but the identities behind them
+are gone, so re-rendering after a clear gives you unattributed text.
+
+`scribble clear` does the same thing from a terminal. `--yes` skips the prompt.
+
+Use it when a bad batch has polluted the speaker store, which is a thing that
+happens. Forty hallucinated segments will happily mint six speakers who do not
+exist, and those then sit there matching against real people forever.
+
+## Automatic reconciliation
+
+`recluster_after_batch` is on by default, and it is the setting that stops you
+having to remember step 2.
+
+When a batch finishes, it reclusters, and if that moved anything it re-renders
+the affected transcripts. Both halves matter: reclustering alone would leave
+every file on disk describing identities that have since changed.
+
+Turn it off in Settings if you'd rather drive it yourself, or if your corpus is
+big enough that you'd rather choose when the reconciliation pass runs.
+
 ## Why that order
 
 1. **Recluster** while everyone's still anonymous
@@ -122,6 +149,7 @@ scribble name <id> <name>     name one
 scribble merge <from> <into>  fold one into another
 scribble dupes                pairs that might be the same person
 scribble dismiss <id> <id>    stop asking me about this pair
+scribble clear                delete everything, after backing it up
 scribble recluster            regroup everything, keep names
 scribble render               rewrite transcripts from the database
 scribble models               what's downloadable

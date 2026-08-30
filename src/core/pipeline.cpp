@@ -550,6 +550,31 @@ void Pipeline::run() {
     }
 
     remove_backend_log_capture();
+
+    // Reconciliation, not decoration. A batch matches speakers in arrival
+    // order, so the store is slightly arbitrary until this runs, and the
+    // re-render is what stops reclustering from leaving every transcript on
+    // disk describing identities that have since moved.
+    if (impl.cfg.recluster_after_batch && done > 0 && !impl.cancel.stop_requested()) {
+        impl.reporter.stage(-1, Stage::Resolving, -1.0, "reclustering");
+        try {
+            const auto result = recluster();
+            if (result.merged > 0) {
+                impl.reporter.stage(-1, Stage::Writing, -1.0, "re-rendering");
+                const int rendered = rerender(false);
+                impl.reporter.info("reclustering moved " + std::to_string(result.merged) +
+                                   " voiceprints, re-rendered " + std::to_string(rendered) +
+                                   " transcripts");
+            } else {
+                impl.reporter.info("reclustering changed nothing, transcripts already current");
+            }
+        } catch (const std::exception &e) {
+            // The transcripts are already written and correct as of the batch.
+            // A failed reconciliation is not worth failing the run over.
+            impl.reporter.warn(std::string("automatic reclustering failed: ") + e.what());
+        }
+    }
+
     impl.reporter.emit(EvRunFinished{done, failed, skipped, impl.cancel.stop_requested(),
                                      seconds_since(run_start)});
 }

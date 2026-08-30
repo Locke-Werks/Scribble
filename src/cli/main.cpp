@@ -1,6 +1,8 @@
 #include <atomic>
+#include <chrono>
 #include <csignal>
 #include <cstdio>
+#include <ctime>
 #include <io.h>
 #include <iostream>
 #include <string>
@@ -136,6 +138,7 @@ void print_usage() {
         "  scribble merge <from> <into>  fold one speaker into another\n"
         "  scribble dupes                report speakers that may be the same person\n"
         "  scribble dismiss <id> <id>    rule a pair out of future duplicate reports\n"
+        "  scribble clear                delete every transcript and speaker\n"
         "  scribble recluster            regroup every voiceprint, keeping names\n"
         "  scribble render               rewrite transcripts from the database\n"
         "  scribble models               list downloadable models\n"
@@ -156,6 +159,7 @@ void print_usage() {
         "  --threshold <n>     speaker match threshold, 0 to 1\n"
         "  --no-diarize        transcribe without speaker separation\n"
         "  --overwrite         redo files already marked done\n"
+        "  --yes               skip the confirmation on destructive commands\n"
         "  --verbose           include backend debug output\n"
         "  --version           print version\n",
         SCRIBBLE_VERSION_STRING);
@@ -178,6 +182,7 @@ struct Args {
     float threshold = -1.0f;
     bool no_diarize = false;
     bool overwrite = false;
+    bool assume_yes = false;
     bool verbose = false;
     bool help = false;
     bool version = false;
@@ -202,6 +207,8 @@ bool parse_args(int argc, char **argv, Args *args, std::string *error) {
             args->verbose = true;
         } else if (arg == "--no-diarize") {
             args->no_diarize = true;
+        } else if (arg == "--yes" || arg == "-y") {
+            args->assume_yes = true;
         } else if (arg == "--overwrite") {
             args->overwrite = true;
         } else if (arg == "--config") {
@@ -318,8 +325,53 @@ void report_gpu_progress(const std::string &component, std::int64_t done,
     std::fflush(stderr);
 }
 
-int cmd_gpu(const Config &cfg, const std::vector<std::string> &args) {
-    const bool install = !args.empty() && iequals(args[0], "install");
+int cmd_clear(Database &db, const Config &cfg, bool assume_yes) {
+    const auto counts = db.counts();
+    if (counts.files == 0 && counts.speakers == 0) {
+        std::printf("Nothing to clear.\n");
+        return 0;
+    }
+
+    std::printf("This deletes everything in %s:\n", cfg.db_path.string().c_str());
+    std::printf("  %d file%s\n", counts.files, counts.files == 1 ? "" : "s");
+    std::printf("  %d transcript segment%s\n", counts.segments,
+                counts.segments == 1 ? "" : "s");
+    std::printf("  %d speaker%s, %d of them named\n", counts.speakers,
+                counts.speakers == 1 ? "" : "s", counts.named_speakers);
+    std::printf("\nTranscript files already on disk are left alone, but the identities\n"
+                "behind them are gone, so re-rendering afterwards produces unattributed\n"
+                "text. A backup is written first.\n\n");
+
+    if (!assume_yes && !confirm("Clear it?")) {
+        std::printf("Nothing cleared.\n");
+        return 0;
+    }
+
+    // Timestamped so repeated clears do not overwrite each other, and taken
+    // through SQLite's backup API rather than a file copy, which would miss
+    // anything still sitting in the write-ahead log.
+    const auto now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+    std::tm tm{};
+    localtime_s(&tm, &now);
+    char stamp[32];
+    std::strftime(stamp, sizeof(stamp), "%Y%m%d-%H%M%S", &tm);
+
+    fs::path backup = cfg.db_path;
+    backup += std::string(".") + stamp + ".bak";
+
+    std::string error;
+    if (!db.backup_to(backup, &error)) {
+        std::fprintf(stderr, "backup failed, nothing cleared: %s\n", error.c_str());
+        return 1;
+    }
+    std::printf("Backed up to %s\n", backup.string().c_str());
+
+    db.clear_all();
+    std::printf("Cleared.\n");
+    return 0;
+}
+
+int cmd_gpu(const Config &cfg, const std::vector<std::string> &args) {    const bool install = !args.empty() && iequals(args[0], "install");
 
     auto status = gpu_runtime_status();
     std::printf("%s\n", status.summary().c_str());
@@ -486,6 +538,9 @@ int main(int argc, char **argv) {
 
         if (args.command == "speakers") {
             return cmd_speakers(db);
+        }
+        if (args.command == "clear") {
+            return cmd_clear(db, cfg, args.assume_yes);
         }
         if (args.command == "dupes") {
             return cmd_dupes(db, cfg);

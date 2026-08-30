@@ -14,6 +14,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QMenuBar>
+#include <QDateTime>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QProgressBar>
@@ -301,6 +302,10 @@ void MainWindow::buildActions() {
     gpuRuntimeAct_ = toolsMenu->addAction(QStringLiteral("GPU acceleration..."));
     connect(gpuRuntimeAct_, &QAction::triggered, this, [this] { openGpuRuntime(false); });
 
+    toolsMenu->addSeparator();
+    clearDatabaseAct_ = toolsMenu->addAction(QStringLiteral("Clear database..."));
+    connect(clearDatabaseAct_, &QAction::triggered, this, &MainWindow::clearDatabase);
+
     auto *viewMenu = menuBar()->addMenu(QStringLiteral("View"));
     viewMenu->addAction(logDock_->toggleViewAction());
 
@@ -461,6 +466,74 @@ void MainWindow::reviewDuplicates() {
                             this);
     connect(&dialog, &DuplicatesDialog::merged, this, &MainWindow::onSpeakersChanged);
     dialog.exec();
+}
+
+void MainWindow::clearDatabase() {
+    auto *db = controller_->database();
+    if (db == nullptr) {
+        return;
+    }
+    if (controller_->busy()) {
+        QMessageBox::information(this, QStringLiteral("Scribble"),
+                                 QStringLiteral("Wait for the current batch to finish."));
+        return;
+    }
+
+    const scribble::Database::Counts counts = db->counts();
+    if (counts.files == 0 && counts.speakers == 0) {
+        QMessageBox::information(this, QStringLiteral("Scribble"),
+                                 QStringLiteral("The database is already empty."));
+        return;
+    }
+
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(QStringLiteral("Clear database"));
+    box.setText(QStringLiteral("Delete every transcript and speaker from the database?"));
+    box.setInformativeText(
+        QStringLiteral("This removes %1 file(s), %2 transcript segment(s) and %3 speaker(s), "
+                       "%4 of which you have named.\n\n"
+                       "Transcript files already written to disk are left alone, but the "
+                       "identities behind them are gone, so re-rendering afterwards produces "
+                       "unattributed text.\n\n"
+                       "A timestamped backup is written next to the database first.")
+            .arg(counts.files)
+            .arg(counts.segments)
+            .arg(counts.speakers)
+            .arg(counts.named_speakers));
+    auto *clearBtn = box.addButton(QStringLiteral("Clear"), QMessageBox::DestructiveRole);
+    box.addButton(QMessageBox::Cancel);
+    box.setDefaultButton(QMessageBox::Cancel);
+    box.exec();
+    if (box.clickedButton() != clearBtn) {
+        return;
+    }
+
+    const scribble::fs::path dbPath = controller_->config().db_path;
+    scribble::fs::path backup = dbPath;
+    backup += "." + QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"))
+                        .toStdString() +
+              ".bak";
+
+    std::string error;
+    if (!db->backup_to(backup, &error)) {
+        QMessageBox::critical(this, QStringLiteral("Scribble"),
+                              QStringLiteral("Backup failed, so nothing was cleared:\n%1")
+                                  .arg(QString::fromStdString(error)));
+        return;
+    }
+
+    db->clear_all();
+
+    queueModel_->clear();
+    transcript_->clearFile();
+    onSpeakersChanged();
+
+    const QString msg =
+        QStringLiteral("Database cleared. Backup written to %1")
+            .arg(QString::fromStdWString(backup.wstring()));
+    logDock_->append(scribble::LogLevel::Info, msg);
+    statusBar()->showMessage(msg, 8000);
 }
 
 void MainWindow::onSpeakersChanged() {

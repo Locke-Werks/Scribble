@@ -50,6 +50,7 @@ private slots:
     void openSettings();
     void openOutputFolder();
     void reviewDuplicates();
+    void clearDatabase();
     void onSpeakersChanged();
     void startRun();
 
@@ -103,6 +104,7 @@ private:
     QAction *settingsAct_ = nullptr;
     QAction *openOutputAct_ = nullptr;
     QAction *gpuRuntimeAct_ = nullptr;
+    QAction *clearDatabaseAct_ = nullptr;
 
     QFrame *gpuInfoBar_ = nullptr;
     QLabel *gpuInfoLabel_ = nullptr;

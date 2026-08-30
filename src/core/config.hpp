@@ -104,13 +104,22 @@ struct Config {
     /// interjections carry too little signal and poison the centroid.
     double embed_min_segment = 3.0;
     int embed_max_segments = 8;
-    /// Cosine above which a file-local speaker joins an existing global one.
+    /// Cosine similarity above which a file's speaker joins an existing identity.
     float match_threshold = 0.65f;
     /// Pairs landing between review and match get reported for a human to
     /// merge rather than silently split or silently joined.
     float review_threshold = 0.50f;
     /// Distance threshold for the offline reclustering pass.
     float cluster_threshold = 0.65f;
+
+    /// Recluster when a batch finishes, and re-render whatever it moved.
+    ///
+    /// Incremental matching is order-dependent, so a batch always leaves the
+    /// store slightly arbitrary until it is reconciled. Doing it automatically
+    /// removes the one step everybody forgets. The re-render is not optional:
+    /// reclustering can move a speaker to a different identity, which makes
+    /// every transcript already on disk stale.
+    bool recluster_after_batch = true;
 
     // -- multi-track --------------------------------------------------------
     /// Off by default. This is for recordings where each channel is a separate

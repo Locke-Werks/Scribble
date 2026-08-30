@@ -112,6 +112,14 @@ review_threshold = 0.50
 # Used by `scribble recluster`.
 cluster_threshold = 0.65
 
+# Recluster when a batch finishes, and re-render whatever moved.
+#
+# This is the step everybody forgets. Matching happens in arrival order while a
+# batch runs, so the grouping stays arbitrary until something reconciles it. The
+# re-render is not optional: reclustering can move a speaker to a different
+# identity, which makes every transcript already on disk wrong.
+recluster_after_batch = true
+
 # -- multi-track --------------------------------------------------------------
 # For recordings where each channel is a separate microphone on a separate
 # person. If that is what you have, turn this on, because it is free perfect
