@@ -13,14 +13,6 @@ namespace {
 
 namespace sx = sherpa_onnx::cxx;
 
-const char *provider_for(Accel accel) {
-    if (accel == Accel::Cpu) {
-        return "cpu";
-    }
-    // Asking for CUDA when its provider cannot load aborts the process rather
-    // than degrading, so availability is probed instead of assumed.
-    return onnx_cuda_available() ? "cuda" : "cpu";
-}
 
 /// Below this a voiceprint is dominated by whatever phoneme happened to be in
 /// the clip rather than by the speaker, and matching becomes a coin flip.
@@ -50,7 +42,7 @@ std::unique_ptr<Embedder> Embedder::create(const Config &cfg, const fs::path &mo
     sx::SpeakerEmbeddingExtractorConfig config;
     config.model = model_file.string();
     config.num_threads = std::max(1, cfg.n_threads / 2);
-    config.provider = provider_for(cfg.onnx_accel);
+    config.provider = onnx_small_model_provider(cfg.onnx_accel);
 
     auto extractor = sx::SpeakerEmbeddingExtractor::Create(config);
     if (!extractor.Get()) {

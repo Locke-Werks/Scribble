@@ -61,6 +61,24 @@ const char *accel_name(Accel a) {
     return "auto";
 }
 
+GpuRuntimeMode parse_gpu_runtime(std::string_view s, bool *ok) {
+    *ok = true;
+    if (iequals(s, "prompt")) return GpuRuntimeMode::Prompt;
+    if (iequals(s, "auto"))   return GpuRuntimeMode::Auto;
+    if (iequals(s, "never"))  return GpuRuntimeMode::Never;
+    *ok = false;
+    return GpuRuntimeMode::Prompt;
+}
+
+const char *gpu_runtime_name(GpuRuntimeMode m) {
+    switch (m) {
+        case GpuRuntimeMode::Prompt: return "prompt";
+        case GpuRuntimeMode::Auto:   return "auto";
+        case GpuRuntimeMode::Never:  return "never";
+    }
+    return "prompt";
+}
+
 std::vector<std::string> string_array(const toml::node *node, bool *ok) {
     std::vector<std::string> out;
     *ok = true;
@@ -218,6 +236,8 @@ Config Config::load(const fs::path &file, std::string *error) {
 
     get_bool("diarize", cfg.diarize);
     get_enum("onnx_accel", parse_accel, cfg.onnx_accel);
+    get_enum("isolate_accel", parse_accel, cfg.isolate_accel);
+    get_enum("gpu_runtime", parse_gpu_runtime, cfg.gpu_runtime);
     get_string("segmentation_model", cfg.segmentation_model);
     get_string("embedding_model", cfg.embedding_model);
     get_int("num_speakers", cfg.num_speakers);
@@ -249,7 +269,8 @@ Config Config::load(const fs::path &file, std::string *error) {
         "entropy_threshold", "logprob_threshold", "no_speech_threshold",
         "word_timestamps", "suppress_non_speech", "hotwords", "initial_prompt",
         "isolate", "isolate_model", "isolate_auto_threshold",
-        "diarize", "onnx_accel", "segmentation_model", "embedding_model",
+        "diarize", "onnx_accel", "isolate_accel", "gpu_runtime", "segmentation_model",
+        "embedding_model",
         "num_speakers", "min_speakers", "max_speakers", "diar_cluster_threshold",
         "embed_min_segment", "embed_max_segments", "match_threshold",
         "review_threshold", "cluster_threshold",
@@ -313,10 +334,12 @@ void Config::save(const fs::path &file) const {
 
     out << "isolate                = " << quote(isolate_name(isolate)) << "\n";
     out << "isolate_model          = " << quote(isolate_model) << "\n";
+    out << "isolate_accel          = " << quote(accel_name(isolate_accel)) << "\n";
     out << "isolate_auto_threshold = " << isolate_auto_threshold << "\n\n";
 
     out << "diarize                = " << (diarize ? "true" : "false") << "\n";
     out << "onnx_accel             = " << quote(accel_name(onnx_accel)) << "\n";
+    out << "gpu_runtime            = " << quote(gpu_runtime_name(gpu_runtime)) << "\n";
     out << "segmentation_model     = " << quote(segmentation_model) << "\n";
     out << "embedding_model        = " << quote(embedding_model) << "\n";
     out << "num_speakers           = " << num_speakers << "\n";

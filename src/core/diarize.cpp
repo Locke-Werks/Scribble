@@ -12,14 +12,6 @@ namespace {
 
 namespace sx = sherpa_onnx::cxx;
 
-const char *provider_for(Accel accel) {
-    if (accel == Accel::Cpu) {
-        return "cpu";
-    }
-    // Asking for CUDA when its provider cannot load aborts the process rather
-    // than degrading, so availability is probed instead of assumed.
-    return onnx_cuda_available() ? "cuda" : "cpu";
-}
 
 /// Overlap in seconds between a word and a diarized turn.
 double overlap(double a0, double a1, double b0, double b1) {
@@ -63,11 +55,11 @@ std::unique_ptr<Diarizer> Diarizer::create(const Config &cfg,
     sx::OfflineSpeakerDiarizationConfig config;
     config.segmentation.pyannote.model = segmentation_model.string();
     config.segmentation.num_threads = std::max(1, cfg.n_threads / 2);
-    config.segmentation.provider = provider_for(cfg.onnx_accel);
+    config.segmentation.provider = onnx_small_model_provider(cfg.onnx_accel);
 
     config.embedding.model = embedding_model.string();
     config.embedding.num_threads = std::max(1, cfg.n_threads / 2);
-    config.embedding.provider = provider_for(cfg.onnx_accel);
+    config.embedding.provider = onnx_small_model_provider(cfg.onnx_accel);
 
     // A known speaker count bypasses thresholding entirely, which is far more
     // reliable than any threshold when the count is actually known.

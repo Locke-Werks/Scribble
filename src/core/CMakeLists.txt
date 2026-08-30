@@ -15,6 +15,7 @@ add_library(scribe_core STATIC
     media.cpp
     wavio.cpp
     models.cpp
+    gpu_runtime.cpp
     asr.cpp
     diarize.cpp
     embed.cpp

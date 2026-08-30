@@ -95,7 +95,11 @@ FetchContent_Declare(sherpa_onnx
     GIT_REPOSITORY https://github.com/k2-fsa/sherpa-onnx.git
     GIT_TAG        v1.13.6
     GIT_SHALLOW    TRUE
+    PATCH_COMMAND  ${CMAKE_COMMAND}
+                   -DDIR=<SOURCE_DIR>
+                   -P ${CMAKE_CURRENT_LIST_DIR}/patch_sherpa_ort.cmake
 )
+
 FetchContent_MakeAvailable(sherpa_onnx)
 
 # onnxruntime's CUDA execution provider lives in side DLLs that must sit beside

@@ -38,11 +38,21 @@ initial_prompt = ""
 # running it on everything.
 isolate                = "never"       # never | auto | always
 isolate_model          = "uvr-mdxnet"
+isolate_accel          = "auto"        # auto | cpu | cuda
 isolate_auto_threshold = 0.28
 
 # -- diarization --------------------------------------------------------------
 diarize            = true
-onnx_accel         = "cpu"  # the segmentation and voiceprint models are small
+# auto decides per stage from the hardware present, not just from whether a GPU
+# exists. Isolation is one large model and the GPU always wins it. Segmentation
+# and voiceprints are small models over many short windows, so they are
+# launch-overhead bound: on a 16-core CPU they are faster on the CPU, on a
+# four-core machine they are faster on the GPU.
+onnx_accel         = "auto"            # auto | cpu | cuda
+# GPU acceleration for those stages needs cuDNN, which cannot be redistributed.
+# prompt asks before downloading it, auto downloads without asking, never stays
+# on CPU. See: scribe gpu
+gpu_runtime        = "prompt"          # prompt | auto | never
 segmentation_model = "pyannote-segmentation-3.0"
 embedding_model    = "wespeaker-resnet293"
 

@@ -46,9 +46,18 @@ there is nothing else to install.
 
 Whisper reaches the GPU through cuBLAS and needs nothing extra. Diarization,
 voiceprints, isolation and Parakeet run on onnxruntime, whose CUDA provider
-additionally needs **cuDNN 9**, a separate NVIDIA download. Without it those
-stages run on CPU, which is announced at startup rather than failing. Whisper
-transcription is unaffected either way.
+additionally needs **cuDNN 9**. NVIDIA's licence does not permit redistributing
+it, so ScribeEveryone downloads it from NVIDIA on request rather than shipping
+it:
+
+```powershell
+scribe gpu           # what is missing and how big
+scribe gpu install
+```
+
+Roughly 1.2 GB, kept in `%LOCALAPPDATA%\ScribeEveryone\runtime`. Until then
+those stages run on CPU, which is announced at startup rather than failing.
+Whisper transcription is unaffected either way.
 
 ## Building
 
@@ -147,6 +156,29 @@ clip the first and last word of every segment.
 
 Whisper remains the default. It is more robust on poor audio and covers far
 more languages.
+
+### Where the GPU actually helps
+
+`onnx_accel` and `isolate_accel` both default to `auto`, which decides per
+stage from the hardware present rather than using the GPU for everything.
+
+Vocal isolation is one large model over the whole recording and the GPU wins on
+any machine. Segmentation and voiceprints are small models run over many short
+windows, so they are launch-overhead bound and the answer depends on how much
+CPU you have.
+
+Measured on a Ryzen 9 7950X with an RTX 4090, over 5.5 minutes of audio:
+
+| Stage | GPU | CPU |
+|---|---|---|
+| Vocal isolation | 38s | 113s |
+| Diarization and voiceprints | 153s | 112s |
+| Parakeet transcription | no measurable difference | |
+
+That CPU is a 16-core part, which is why it wins the middle row. On a four or
+eight core machine the GPU wins it comfortably, so `auto` sends small-model work
+to the GPU there and keeps it on the CPU on a machine like the one above. Set
+`onnx_accel = "cuda"` or `"cpu"` to override.
 
 ## Better diarization
 

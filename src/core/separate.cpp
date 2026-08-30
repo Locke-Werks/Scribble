@@ -10,14 +10,6 @@ namespace {
 
 namespace sx = sherpa_onnx::cxx;
 
-const char *provider_for(Accel accel) {
-    if (accel == Accel::Cpu) {
-        return "cpu";
-    }
-    // Asking for CUDA when its provider cannot load aborts the process rather
-    // than degrading, so availability is probed instead of assumed.
-    return onnx_cuda_available() ? "cuda" : "cpu";
-}
 
 /// UVR returns the vocal stem first and the accompaniment second.
 constexpr int kVocalStem = 0;
@@ -45,7 +37,7 @@ std::unique_ptr<Separator> Separator::create(const Config &cfg, const fs::path &
     sx::OfflineSourceSeparationConfig config;
     config.model.uvr.model = model_file.string();
     config.model.num_threads = std::max(1, cfg.n_threads / 2);
-    config.model.provider = provider_for(cfg.onnx_accel);
+    config.model.provider = onnx_large_model_provider(cfg.isolate_accel);
 
     auto engine = sx::OfflineSourceSeparation::Create(config);
     if (!engine.Get()) {

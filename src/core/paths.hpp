@@ -2,6 +2,8 @@
 
 #include <filesystem>
 
+#include "config.hpp"
+
 namespace scribe {
 
 namespace fs = std::filesystem;
@@ -31,5 +33,23 @@ fs::path executable_dir();
 /// asking for CUDA and handling failure. whisper.cpp is unaffected: it goes
 /// through cuBLAS and needs no cuDNN.
 bool onnx_cuda_available();
+
+/// Provider for the small models that run over many short windows: speaker
+/// segmentation and voiceprints.
+///
+/// These are launch-overhead bound, so the GPU is not automatically the right
+/// answer. On a 16-core Ryzen 9 7950X against an RTX 4090, diarizing 5.5
+/// minutes took 153s on the GPU and 112s on the CPU. On a four-core laptop the
+/// same comparison inverts, because the CPU side of that result is the part
+/// that scales with the machine.
+///
+/// Auto therefore decides from the CPU actually present rather than from
+/// whether a GPU exists. It is a heuristic, and `onnx_accel` overrides it.
+const char *onnx_small_model_provider(Accel requested);
+
+/// Provider for large single-pass models, currently source separation. One
+/// model over the whole recording keeps the GPU busy enough to win regardless
+/// of the CPU: 38s against 113s on the machine above.
+const char *onnx_large_model_provider(Accel requested);
 
 }  // namespace scribe

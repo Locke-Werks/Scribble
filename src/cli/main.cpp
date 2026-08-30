@@ -1,12 +1,14 @@
 #include <atomic>
 #include <csignal>
 #include <cstdio>
+#include <io.h>
 #include <iostream>
 #include <string>
 #include <vector>
 
 #include "config.hpp"
 #include "db.hpp"
+#include "gpu_runtime.hpp"
 #include "models.hpp"
 #include "paths.hpp"
 #include "pipeline.hpp"
@@ -137,6 +139,7 @@ void print_usage() {
         "  scribe recluster            regroup every voiceprint, keeping names\n"
         "  scribe render               rewrite transcripts from the database\n"
         "  scribe models               list downloadable models\n"
+        "  scribe gpu [install]        GPU acceleration for isolation and diarization\n"
         "\n"
         "Options:\n"
         "  --config <file>     configuration file (default scribe.toml)\n"
@@ -147,6 +150,9 @@ void print_usage() {
         "  --formats <list>    comma separated: srt,vtt,md,json,txt,tsv\n"
         "  --backend <name>    whisper or parakeet\n"
         "  --isolate <mode>    never, auto or always. Strips music and background\n"
+        "  --gpu <mode>        prompt, auto or never. Downloads cuDNN for onnxruntime\n"
+        "  --onnx-accel <dev>  auto, cpu or cuda for diarization and isolation\n"
+        "  --asr-accel <dev>   auto, cpu or cuda for transcription\n"
         "  --threshold <n>     speaker match threshold, 0 to 1\n"
         "  --no-diarize        transcribe without speaker separation\n"
         "  --overwrite         redo files already marked done\n"
@@ -166,6 +172,9 @@ struct Args {
     std::string formats;
     std::string isolate;
     std::string backend;
+    std::string gpu;
+    std::string onnx_accel;
+    std::string asr_accel;
     float threshold = -1.0f;
     bool no_diarize = false;
     bool overwrite = false;
@@ -211,6 +220,12 @@ bool parse_args(int argc, char **argv, Args *args, std::string *error) {
             args->isolate = value_for(i, "--isolate");
         } else if (arg == "--backend") {
             args->backend = value_for(i, "--backend");
+        } else if (arg == "--gpu") {
+            args->gpu = value_for(i, "--gpu");
+        } else if (arg == "--onnx-accel") {
+            args->onnx_accel = value_for(i, "--onnx-accel");
+        } else if (arg == "--asr-accel") {
+            args->asr_accel = value_for(i, "--asr-accel");
         } else if (arg == "--threshold") {
             args->threshold = std::stof(value_for(i, "--threshold"));
         } else if (!arg.empty() && arg.front() == '-') {
@@ -266,10 +281,78 @@ int cmd_models() {
     for (const auto &m : model_catalogue()) {
         const char *kind = m.kind == ModelKind::Whisper       ? "transcription"
                            : m.kind == ModelKind::Segmentation ? "segmentation"
+                           : m.kind == ModelKind::Separation   ? "isolation"
+                           : m.kind == ModelKind::Parakeet     ? "transcription"
+                           : m.kind == ModelKind::Vad          ? "vad"
                                                                : "voiceprint";
         std::printf("%-26s %-14s %6lld MB  %s\n", m.name.c_str(), kind,
                     static_cast<long long>(m.approx_bytes / 1'000'000), m.description.c_str());
     }
+    return 0;
+}
+
+/// Asks before starting a download measured in gigabytes. Returns false when
+/// there is no terminal to ask, so an unattended run never blocks on stdin.
+bool confirm(const std::string &question) {
+    if (!_isatty(_fileno(stdin))) {
+        return false;
+    }
+    std::fprintf(stderr, "%s [y/N] ", question.c_str());
+    std::fflush(stderr);
+    std::string answer;
+    if (!std::getline(std::cin, answer)) {
+        return false;
+    }
+    answer = to_lower(trim(answer));
+    return answer == "y" || answer == "yes";
+}
+
+void report_gpu_progress(const std::string &component, std::int64_t done,
+                         std::int64_t total) {
+    if (total <= 0) {
+        return;
+    }
+    std::fprintf(stderr, "\r  %-30s %5.1f / %.1f GB", component.c_str(),
+                 static_cast<double>(done) / 1'000'000'000.0,
+                 static_cast<double>(total) / 1'000'000'000.0);
+    std::fflush(stderr);
+}
+
+int cmd_gpu(const Config &cfg, const std::vector<std::string> &args) {
+    const bool install = !args.empty() && iequals(args[0], "install");
+
+    auto status = gpu_runtime_status();
+    std::printf("%s\n", status.summary().c_str());
+
+    if (status.ready) {
+        std::printf("Installed in %s\n", gpu_runtime_dir().string().c_str());
+        return 0;
+    }
+    if (!install) {
+        std::printf("\nWhisper already uses the GPU. This covers diarization, voiceprints,\n"
+                    "isolation and Parakeet, which run through onnxruntime.\n"
+                    "\n  scribe gpu install\n");
+        return 0;
+    }
+
+    if (cfg.gpu_runtime == GpuRuntimeMode::Never) {
+        std::fprintf(stderr, "gpu_runtime is set to never in the configuration.\n");
+        return 1;
+    }
+    if (cfg.gpu_runtime == GpuRuntimeMode::Prompt &&
+        !confirm("Download it from NVIDIA and Microsoft now?")) {
+        std::printf("Nothing downloaded.\n");
+        return 0;
+    }
+
+    CancelToken cancel;
+    std::string error;
+    if (!install_gpu_runtime(status, report_gpu_progress, cancel, &error)) {
+        std::fprintf(stderr, "\n%s\n", error.c_str());
+        return 1;
+    }
+    std::fprintf(stderr, "\n");
+    std::printf("Installed in %s\n", gpu_runtime_dir().string().c_str());
     return 0;
 }
 
@@ -328,6 +411,35 @@ int main(int argc, char **argv) {
             return 2;
         }
     }
+    if (!args.gpu.empty()) {
+        if (iequals(args.gpu, "prompt"))     cfg.gpu_runtime = GpuRuntimeMode::Prompt;
+        else if (iequals(args.gpu, "auto"))  cfg.gpu_runtime = GpuRuntimeMode::Auto;
+        else if (iequals(args.gpu, "never")) cfg.gpu_runtime = GpuRuntimeMode::Never;
+        else {
+            std::fprintf(stderr, "--gpu must be prompt, auto or never\n");
+            return 2;
+        }
+    }
+    if (!args.onnx_accel.empty()) {
+        if (iequals(args.onnx_accel, "auto"))      cfg.onnx_accel = Accel::Auto;
+        else if (iequals(args.onnx_accel, "cpu"))  cfg.onnx_accel = Accel::Cpu;
+        else if (iequals(args.onnx_accel, "cuda") || iequals(args.onnx_accel, "gpu"))
+            cfg.onnx_accel = Accel::Cuda;
+        else {
+            std::fprintf(stderr, "--onnx-accel must be auto, cpu or cuda\n");
+            return 2;
+        }
+    }
+    if (!args.asr_accel.empty()) {
+        if (iequals(args.asr_accel, "auto"))      cfg.asr_accel = Accel::Auto;
+        else if (iequals(args.asr_accel, "cpu"))  cfg.asr_accel = Accel::Cpu;
+        else if (iequals(args.asr_accel, "cuda") || iequals(args.asr_accel, "gpu"))
+            cfg.asr_accel = Accel::Cuda;
+        else {
+            std::fprintf(stderr, "--asr-accel must be auto, cpu or cuda\n");
+            return 2;
+        }
+    }
     if (args.threshold >= 0.0f) cfg.match_threshold = args.threshold;
     if (args.no_diarize)        cfg.diarize = false;
     if (args.overwrite)         cfg.overwrite = true;
@@ -341,6 +453,32 @@ int main(int argc, char **argv) {
 
     if (args.command == "models") {
         return cmd_models();
+    }
+    if (args.command == "gpu") {
+        return cmd_gpu(cfg, args.positional);
+    }
+
+    // Offered before any model is loaded, so accepting does not mean waiting
+    // through a download with a half-started batch behind it. Isolation is the
+    // stage that actually benefits, so its setting drives the offer.
+    if (args.command == "run" && cfg.gpu_runtime != GpuRuntimeMode::Never &&
+        (cfg.isolate != IsolateMode::Never || cfg.onnx_accel == Accel::Cuda ||
+         cfg.backend == AsrBackend::Parakeet)) {
+        auto status = gpu_runtime_status();
+        if (!status.ready) {
+            std::fprintf(stderr, "%s\n", status.summary().c_str());
+            const bool go = cfg.gpu_runtime == GpuRuntimeMode::Auto ||
+                            confirm("Download it now? Declining runs these stages on CPU.");
+            if (go) {
+                CancelToken token;
+                std::string gpu_error;
+                if (install_gpu_runtime(status, report_gpu_progress, token, &gpu_error)) {
+                    std::fprintf(stderr, "\nGPU runtime installed.\n");
+                } else {
+                    std::fprintf(stderr, "\n%s\nContinuing on CPU.\n", gpu_error.c_str());
+                }
+            }
+        }
     }
 
     try {

@@ -1,7 +1,9 @@
 #include "paths.hpp"
 
 #include <cstdlib>
+#include <thread>
 
+#include "gpu_runtime.hpp"
 #include "util.hpp"
 
 #ifdef _WIN32
@@ -109,16 +111,17 @@ fs::path find_ffprobe() { return search_path(kFfprobeName); }
 bool onnx_cuda_available() {
 #if defined(_WIN32) && defined(SCRIBE_HAVE_CUDA)
     static const bool available = [] {
-        // Probed once. Both must resolve: the provider DLL is staged beside the
-        // executable, but cuDNN is a separate NVIDIA download that is commonly
-        // missing on machines that have the CUDA toolkit.
-        for (const wchar_t *name : {L"cudnn64_9.dll", L"onnxruntime_providers_cuda.dll"}) {
-            HMODULE module = LoadLibraryExW(name, nullptr, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS |
-                                                               LOAD_LIBRARY_SEARCH_APPLICATION_DIR |
-                                                               LOAD_LIBRARY_SEARCH_SYSTEM32);
-            if (module == nullptr) {
-                module = LoadLibraryW(name);
-            }
+        // The downloaded runtime directory goes on the search path first,
+        // otherwise a freshly installed cuDNN is invisible to this probe and
+        // to the loader that will need it moments later.
+        activate_gpu_runtime();
+
+        // All three must resolve. cuDNN and cuFFT are NVIDIA downloads that
+        // cannot be redistributed, and the CUDA provider is fetched alongside
+        // them rather than installed for machines that will never have them.
+        for (const wchar_t *name : {L"cudnn64_9.dll", L"cufft64_12.dll",
+                                    L"onnxruntime_providers_cuda.dll"}) {
+            HMODULE module = LoadLibraryExW(name, nullptr, LOAD_LIBRARY_AS_DATAFILE);
             if (module == nullptr) {
                 return false;
             }
@@ -130,6 +133,38 @@ bool onnx_cuda_available() {
 #else
     return false;
 #endif
+}
+
+namespace {
+
+/// Above this many logical processors the CPU wins on the small per-window
+/// models. Derived from the one paired measurement available, a 7950X at 32
+/// logical processors beating a 4090 by roughly a third, then set below that
+/// crossover so the GPU keeps the work on any machine where the comparison is
+/// close. Wrong in one direction costs some throughput, never correctness.
+constexpr unsigned kCpuWinsThreads = 24;
+
+}  // namespace
+
+const char *onnx_small_model_provider(Accel requested) {
+    if (requested == Accel::Cpu) {
+        return "cpu";
+    }
+    if (!onnx_cuda_available()) {
+        return "cpu";
+    }
+    if (requested == Accel::Cuda) {
+        return "cuda";
+    }
+    const unsigned threads = std::thread::hardware_concurrency();
+    return (threads != 0 && threads >= kCpuWinsThreads) ? "cpu" : "cuda";
+}
+
+const char *onnx_large_model_provider(Accel requested) {
+    if (requested == Accel::Cpu) {
+        return "cpu";
+    }
+    return onnx_cuda_available() ? "cuda" : "cpu";
 }
 
 }  // namespace scribe

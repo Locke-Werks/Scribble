@@ -21,6 +21,14 @@ enum class AsrBackend { Whisper, Parakeet };
 /// while the GPU stays saturated with Whisper.
 enum class Accel { Auto, Cpu, Cuda };
 
+/// What to do when GPU acceleration for the onnxruntime stages is wanted but
+/// cuDNN and its companions are not installed.
+enum class GpuRuntimeMode {
+    Prompt,  ///< ask before downloading, and run on CPU if declined
+    Auto,    ///< download without asking
+    Never,   ///< stay on CPU and say so once
+};
+
 struct Config {
     // -- paths ------------------------------------------------------------
     fs::path out_dir{"out"};
@@ -61,7 +69,18 @@ struct Config {
 
     // -- diarization --------------------------------------------------------
     bool diarize = true;
-    Accel onnx_accel = Accel::Cpu;
+    /// Auto, and genuinely automatic: see onnx_small_model_provider in
+    /// paths.hpp. Segmentation and voiceprint models are small and run over
+    /// many short windows, so whether the GPU wins depends on how much CPU the
+    /// machine has, not on whether a GPU exists.
+    Accel onnx_accel = Accel::Auto;
+    /// Isolation is one large model over the whole recording, where the GPU
+    /// wins on any machine, so Auto here means the GPU whenever it is usable.
+    Accel isolate_accel = Accel::Auto;
+    /// Diarization, voiceprints, isolation and Parakeet reach the GPU through
+    /// onnxruntime, which needs cuDNN. NVIDIA's licence does not allow shipping
+    /// it, so it is fetched on request. Whisper is unaffected either way.
+    GpuRuntimeMode gpu_runtime = GpuRuntimeMode::Prompt;
     std::string segmentation_model = "pyannote-segmentation-3.0";
     std::string embedding_model = "wespeaker-resnet293";
     int num_speakers = -1;   ///< -1 lets clustering decide
