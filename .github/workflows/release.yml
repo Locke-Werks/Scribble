@@ -60,14 +60,18 @@ jobs:
           $after = (Get-PSDrive C).Free / 1GB
           "free: {0:N1} GB -> {1:N1} GB" -f $before, $after
 
+      # The full toolkit, not a sub-package list. CUDA 13 does not ship the nvcc
+      # CRT headers with the components you would expect: an install of nvcc +
+      # cudart + cublas leaves out include/crt/host_config.h, and the first
+      # thing that notices is CMake's CUDA compiler probe, four minutes into a
+      # job that is otherwise four hours long. The cleanup step above leaves
+      # over 40 GB free, so the few extra gigabytes buy back that whole class of
+      # failure.
       - name: Install CUDA ${{ env.CUDA_VERSION }}
         uses: Jimver/cuda-toolkit@v0.2.36
         with:
           cuda: ${{ env.CUDA_VERSION }}
           method: 'network'
-          # The full toolkit is mostly samples and profilers. These are what
-          # nvcc needs to compile ggml's kernels and what the payload ships.
-          sub-packages: '["nvcc", "cudart", "cublas", "cublas_dev", "thrust", "visual_studio_integration"]'
 
       - name: Install Qt ${{ env.QT_VERSION }}
         uses: jurplel/install-qt-action@v4
@@ -200,15 +204,18 @@ jobs:
       - name: Forge the installer
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
           ./tools/lwforge.exe build `
             --config installer\installer.toml `
             --payload build\payload `
             --stub tools\lwstub.exe `
-            --out build\Scribble-Setup.exe
+            --out dist\Scribble-Setup.exe
           if ($LASTEXITCODE -ne 0) { throw "lwforge exited $LASTEXITCODE" }
 
       # Last, after resource stamping and the container append have already
-      # rewritten the image.
+      # rewritten the image. The installer sits alone in dist/ so this signs
+      # exactly one file and cannot quietly pick up a stray executable from the
+      # build tree.
       - name: Sign the installer
         uses: azure/trusted-signing-action@v0
         with:
@@ -218,7 +225,7 @@ jobs:
           endpoint: https://eus.codesigning.azure.net
           trusted-signing-account-name: specterpoint
           certificate-profile-name: specterpoint
-          files-folder: build
+          files-folder: dist
           files-folder-filter: exe
           file-digest: SHA256
           timestamp-rfc3161: http://timestamp.acs.microsoft.com
@@ -227,21 +234,21 @@ jobs:
       - name: Verify the installer
         shell: pwsh
         run: |
-          $sig = Get-AuthenticodeSignature build/Scribble-Setup.exe
+          $sig = Get-AuthenticodeSignature dist/Scribble-Setup.exe
           "installer: $($sig.Status)"
           "signer:    $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "installer is $($sig.Status)" }
 
           # Signing appended a certificate table after the container. This
           # proves it did not orphan the payload.
-          ./tools/lwforge.exe inspect build\Scribble-Setup.exe
+          ./tools/lwforge.exe inspect dist\Scribble-Setup.exe
           if ($LASTEXITCODE -ne 0) { throw 'the signed installer cannot read its own container' }
 
           # Catches a renamed or dropped option id, and also catches the version
           # pin slipping below v0.3.0: a Forge build with no option support
           # prints no options block here at all, rather than failing, which is
           # how `when` ends up firing unconditionally in a shipped installer.
-          $inspect = & ./tools/lwforge.exe inspect build\Scribble-Setup.exe | Out-String
+          $inspect = & ./tools/lwforge.exe inspect dist\Scribble-Setup.exe | Out-String
           foreach ($id in 'desktop_shortcut', 'add_to_path') {
             if ($inspect -notmatch [regex]::Escape($id)) {
               throw "option '$id' is not declared in the forged container"
@@ -257,7 +264,7 @@ jobs:
           # A launch failure is environmental and the container check above has
           # already proven the option surface, so it does not fail the release.
           try {
-            $p = Start-Process -FilePath 'build\Scribble-Setup.exe' `
+            $p = Start-Process -FilePath 'dist\Scribble-Setup.exe' `
                    -ArgumentList '--check-only', '/O:desktop_shortcut=off', '/O:add_to_path=on' `
                    -Wait -PassThru -NoNewWindow -ErrorAction Stop
             if ($p.ExitCode -ne 0) { throw "check-only exited $($p.ExitCode)" }
@@ -270,7 +277,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Scribble-Setup
-          path: build/Scribble-Setup.exe
+          path: dist/Scribble-Setup.exe
           retention-days: 14
 
       - name: Publish
@@ -280,7 +287,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = if ($env:GITHUB_REF -like 'refs/tags/*') { $env:GITHUB_REF_NAME } else { "v$(Get-Date -Format yyyyMMddHHmm)" }
-          gh release create $tag build/Scribble-Setup.exe `
+          gh release create $tag dist/Scribble-Setup.exe `
             --repo "${{ github.repository }}" `
             --title "Scribble $tag" `
             --generate-notes
