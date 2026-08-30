@@ -318,19 +318,26 @@ QWidget *SettingsDialog::buildDiarizationTab() {
     auto *trackForm = new QFormLayout(trackBox);
     splitChannels_ = new QCheckBox(QStringLiteral("Split channels into separate tracks"), trackBox);
     splitChannels_->setChecked(base_.split_channels);
+    splitChannels_->setToolTip(
+        QStringLiteral("For recordings where each channel is a separate microphone on a "
+                       "separate person. An ordinary stereo mix is not that: both channels "
+                       "carry the same sources, and splitting one produces two half "
+                       "transcripts of the same conversation."));
     maxSplitChannels_ = new QSpinBox(trackBox);
     maxSplitChannels_->setRange(1, 64);
     maxSplitChannels_->setValue(base_.max_split_channels);
-    channelDupCorrelation_ = new QDoubleSpinBox(trackBox);
-    channelDupCorrelation_->setRange(0.0, 1.0);
-    channelDupCorrelation_->setSingleStep(0.01);
-    channelDupCorrelation_->setValue(base_.channel_dup_correlation);
-    channelDupCorrelation_->setToolTip(
-        QStringLiteral("Above this correlation the two channels are one mono source duplicated, so "
-                       "splitting would just double the work for nothing."));
+    channelIndependence_ = new QDoubleSpinBox(trackBox);
+    channelIndependence_->setRange(0.0, 1.0);
+    channelIndependence_->setSingleStep(0.01);
+    channelIndependence_->setValue(base_.channel_independence);
+    channelIndependence_->setToolTip(
+        QStringLiteral("How unlike each other two channels must be before they count as "
+                       "separate microphones. Stereo content sits high because both channels "
+                       "carry the same sources. Independent microphones sit low, since each "
+                       "is dominated by whoever is closest to it."));
     trackForm->addRow(QString(), splitChannels_);
     trackForm->addRow(QStringLiteral("Max split channels"), maxSplitChannels_);
-    trackForm->addRow(QStringLiteral("Duplicate correlation"), channelDupCorrelation_);
+    trackForm->addRow(QStringLiteral("Channel independence"), channelIndependence_);
     form->addRow(trackBox);
 
     return tab;
@@ -474,7 +481,7 @@ scribe::Config SettingsDialog::config() const {
     c.diar_cluster_threshold = static_cast<float>(diarClusterThreshold_->value());
     c.split_channels = splitChannels_->isChecked();
     c.max_split_channels = maxSplitChannels_->value();
-    c.channel_dup_correlation = static_cast<float>(channelDupCorrelation_->value());
+    c.channel_independence = static_cast<float>(channelIndependence_->value());
 
     c.embed_min_segment = embedMinSegment_->value();
     c.embed_max_segments = embedMaxSegments_->value();

@@ -77,13 +77,15 @@ review_threshold = 0.50
 cluster_threshold = 0.65
 
 # -- multi-track --------------------------------------------------------------
-# Separate microphone tracks are free perfect diarization, and downmixing
-# destroys that permanently.
-split_channels          = true
-max_split_channels      = 8
-# Above this correlation the channels are one mono source duplicated, which is
-# common in exported video, so splitting would double the work for nothing.
-channel_dup_correlation = 0.98
+# For recordings where each channel is a separate microphone on a separate
+# person. Off by default because an ordinary stereo mix is not that: both
+# channels carry the same sources, and splitting one yields two half
+# transcripts of the same conversation.
+split_channels       = false
+max_split_channels   = 8
+# How unlike each other two channels must be before they count as separate
+# microphones. Stereo content sits high, independent microphones sit low.
+channel_independence = 0.35
 
 # -- output -------------------------------------------------------------------
 formats   = ["srt", "md", "json"]

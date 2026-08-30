@@ -62,6 +62,11 @@ struct Config {
     float no_speech_threshold = 0.6f;
     bool word_timestamps = true;
     bool suppress_non_speech = true;
+    /// Runs voice activity detection before Whisper decodes anything. Without
+    /// it a recording that is mostly ambience produces confident, fluent,
+    /// entirely invented speech repeated for the length of the file, because
+    /// Whisper is a language model and silence is out of its distribution.
+    bool vad_filter = true;
     /// Proper nouns, jargon and product names. The cheapest large accuracy
     /// gain available on exactly the words that matter.
     std::vector<std::string> hotwords;
@@ -108,11 +113,18 @@ struct Config {
     float cluster_threshold = 0.65f;
 
     // -- multi-track --------------------------------------------------------
-    bool split_channels = true;
+    /// Off by default. This is for recordings where each channel is a separate
+    /// microphone on a separate person, which is rare, and splitting an
+    /// ordinary stereo mix instead doubles the work and produces two half
+    /// transcripts of the same conversation.
+    bool split_channels = false;
     int max_split_channels = 8;
-    /// Above this correlation the two channels are one mono source duplicated,
-    /// so splitting would just double the work for nothing.
-    float channel_dup_correlation = 0.98f;
+    /// How unlike each other two channels must be before they are treated as
+    /// separate microphones. Ordinary stereo content sits high here because
+    /// both channels carry the same sources at different levels. Genuinely
+    /// independent microphones sit low, since each one is dominated by whoever
+    /// is closest to it.
+    float channel_independence = 0.35f;
 
     // -- output -------------------------------------------------------------
     std::vector<std::string> formats{"srt", "md", "json"};

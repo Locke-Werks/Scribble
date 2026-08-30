@@ -12,7 +12,7 @@ namespace scribe {
 
 namespace fs = std::filesystem;
 
-enum class ModelKind { Whisper, Segmentation, Embedding, Separation, Parakeet, Vad };
+enum class ModelKind { Whisper, Segmentation, Embedding, Separation, Parakeet, Vad, WhisperVad };
 
 struct ModelSpec {
     std::string name;

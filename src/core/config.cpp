@@ -227,6 +227,7 @@ Config Config::load(const fs::path &file, std::string *error) {
     get_float("no_speech_threshold", cfg.no_speech_threshold);
     get_bool("word_timestamps", cfg.word_timestamps);
     get_bool("suppress_non_speech", cfg.suppress_non_speech);
+    get_bool("vad_filter", cfg.vad_filter);
     get_strings("hotwords", cfg.hotwords);
     get_string("initial_prompt", cfg.initial_prompt);
 
@@ -253,7 +254,7 @@ Config Config::load(const fs::path &file, std::string *error) {
 
     get_bool("split_channels", cfg.split_channels);
     get_int("max_split_channels", cfg.max_split_channels);
-    get_float("channel_dup_correlation", cfg.channel_dup_correlation);
+    get_float("channel_independence", cfg.channel_independence);
 
     get_strings("formats", cfg.formats);
     get_bool("overwrite", cfg.overwrite);
@@ -267,14 +268,14 @@ Config Config::load(const fs::path &file, std::string *error) {
         "backend", "model", "asr_accel", "language", "translate", "beam_size",
         "n_threads", "condition_on_previous_text", "temperature_fallback",
         "entropy_threshold", "logprob_threshold", "no_speech_threshold",
-        "word_timestamps", "suppress_non_speech", "hotwords", "initial_prompt",
+        "word_timestamps", "suppress_non_speech", "vad_filter", "hotwords", "initial_prompt",
         "isolate", "isolate_model", "isolate_auto_threshold",
         "diarize", "onnx_accel", "isolate_accel", "gpu_runtime", "segmentation_model",
         "embedding_model",
         "num_speakers", "min_speakers", "max_speakers", "diar_cluster_threshold",
         "embed_min_segment", "embed_max_segments", "match_threshold",
         "review_threshold", "cluster_threshold",
-        "split_channels", "max_split_channels", "channel_dup_correlation",
+        "split_channels", "max_split_channels", "channel_independence",
         "formats", "overwrite", "recursive", "decode_lookahead",
     };
     for (const auto &[key, _] : tbl) {
@@ -329,6 +330,7 @@ void Config::save(const fs::path &file) const {
     out << "no_speech_threshold        = " << no_speech_threshold << "\n";
     out << "word_timestamps            = " << (word_timestamps ? "true" : "false") << "\n";
     out << "suppress_non_speech        = " << (suppress_non_speech ? "true" : "false") << "\n";
+    out << "vad_filter                 = " << (vad_filter ? "true" : "false") << "\n";
     out << "hotwords                   = " << array(hotwords) << "\n";
     out << "initial_prompt             = " << quote(initial_prompt) << "\n\n";
 
@@ -355,7 +357,7 @@ void Config::save(const fs::path &file) const {
 
     out << "split_channels          = " << (split_channels ? "true" : "false") << "\n";
     out << "max_split_channels      = " << max_split_channels << "\n";
-    out << "channel_dup_correlation = " << channel_dup_correlation << "\n\n";
+    out << "channel_independence     = " << channel_independence << "\n\n";
 
     out << "formats          = " << array(formats) << "\n";
     out << "overwrite        = " << (overwrite ? "true" : "false") << "\n";

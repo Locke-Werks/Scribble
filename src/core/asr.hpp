@@ -27,6 +27,12 @@ public:
     static std::unique_ptr<Transcriber> create(const Config &cfg, const fs::path &model_file,
                                                std::string *error);
 
+    /// Whisper's built-in voice activity detection. Without it, a recording
+    /// that is mostly ambience produces confident, fluent, entirely invented
+    /// speech, repeated for the length of the file. Optional only because the
+    /// model is a separate download.
+    void set_vad_model(const fs::path &model_file);
+
     /// Parakeet is a transducer, so it needs the unpacked model directory and a
     /// VAD to cut the recording into utterances. Whisper does its own windowing.
     static std::unique_ptr<Transcriber> create_parakeet(const Config &cfg,

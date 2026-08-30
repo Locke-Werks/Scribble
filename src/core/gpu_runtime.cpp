@@ -32,8 +32,10 @@ bool have_file(const fs::path &dir, const std::string &name) {
         return true;
     }
 #ifdef _WIN32
-    // Already resolvable elsewhere, typically because a CUDA toolkit or a
-    // previous NVIDIA install put it on the search path.
+    // Resolvable elsewhere, typically because a CUDA toolkit put it on the
+    // search path. Loaded as a datafile deliberately: this only asks whether
+    // the file is present, and a real load would fail for a library whose own
+    // dependencies are still being downloaded.
     HMODULE module = LoadLibraryExW(widen(name).c_str(), nullptr, LOAD_LIBRARY_AS_DATAFILE);
     if (module != nullptr) {
         FreeLibrary(module);

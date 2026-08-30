@@ -325,6 +325,18 @@ const std::vector<ModelSpec> &model_catalogue() {
         vad.approx_bytes = 2'200'000;
         v.push_back(vad);
 
+        // Whisper's own VAD wants a GGML build of the same model, not the ONNX
+        // one sherpa uses, so both are listed rather than shared.
+        ModelSpec whisper_vad;
+        whisper_vad.name = "whisper-vad";
+        whisper_vad.kind = ModelKind::WhisperVad;
+        whisper_vad.url =
+            "https://huggingface.co/ggml-org/whisper-vad/resolve/main/ggml-silero-v5.1.2.bin";
+        whisper_vad.filename = "ggml-silero-v5.1.2.bin";
+        whisper_vad.description = "Voice activity detection, keeps Whisper off non-speech audio";
+        whisper_vad.approx_bytes = 885'098;
+        v.push_back(whisper_vad);
+
         return v;
     }();
     return catalogue;

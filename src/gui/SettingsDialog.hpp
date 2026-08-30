@@ -76,7 +76,7 @@ private:
     QDoubleSpinBox *diarClusterThreshold_ = nullptr;
     QCheckBox *splitChannels_ = nullptr;
     QSpinBox *maxSplitChannels_ = nullptr;
-    QDoubleSpinBox *channelDupCorrelation_ = nullptr;
+    QDoubleSpinBox *channelIndependence_ = nullptr;
 
     // Identity
     QDoubleSpinBox *embedMinSegment_ = nullptr;

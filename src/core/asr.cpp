@@ -179,6 +179,7 @@ struct Transcriber::Impl {
     std::string model_name;
     bool gpu = false;
     std::string prompt;
+    std::string whisper_vad_model;
 };
 
 Transcriber::Transcriber() : impl_(std::make_unique<Impl>()) {}
@@ -237,6 +238,10 @@ std::unique_ptr<Transcriber> Transcriber::create(const Config &cfg, const fs::pa
 std::string Transcriber::model_name() const { return impl_->model_name; }
 
 bool Transcriber::using_gpu() const { return impl_->gpu; }
+
+void Transcriber::set_vad_model(const fs::path &model_file) {
+    impl_->whisper_vad_model = model_file.string();
+}
 
 std::unique_ptr<Transcriber> Transcriber::create_parakeet(const Config &cfg,
                                                           const fs::path &model_dir,
@@ -524,6 +529,25 @@ bool Transcriber::transcribe(const std::vector<float> &samples,
 
     if (!impl_->prompt.empty()) {
         params.initial_prompt = impl_->prompt.c_str();
+    }
+
+    // Whisper is a language model with an audio encoder, and on non-speech it
+    // will happily invent a plausible sentence and then repeat it for the
+    // length of the recording. The thresholds above only score a window after
+    // it has been decoded; VAD stops the window from being decoded at all,
+    // which is the difference between a garbage transcript and an empty one.
+    if (cfg.vad_filter && !impl_->whisper_vad_model.empty()) {
+        params.vad = true;
+        params.vad_model_path = impl_->whisper_vad_model.c_str();
+        params.vad_params = whisper_vad_default_params();
+        params.vad_params.threshold = 0.5f;
+        params.vad_params.min_speech_duration_ms = 250;
+        params.vad_params.min_silence_duration_ms = 400;
+        params.vad_params.max_speech_duration_s = 30.0f;
+        // Padding and overlap keep the first and last word of each speech run,
+        // which a tight VAD boundary otherwise clips.
+        params.vad_params.speech_pad_ms = 300;
+        params.vad_params.samples_overlap = 0.2f;
     }
 
     CallbackState state;

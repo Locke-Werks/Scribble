@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 project(ScribeEveryone
-    VERSION 0.1.1
+    VERSION 0.1.2
     DESCRIPTION "Batch transcription with diarization and corpus-wide speaker identity"
     LANGUAGES C CXX
 )

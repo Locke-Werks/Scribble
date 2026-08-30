@@ -107,6 +107,21 @@ bool Pipeline::Impl::ensure_backends(std::string *error) {
             }
             reporter.info("loading " + model.filename().string());
             transcriber = Transcriber::create(cfg, model, error);
+
+            // Fetched separately because it is a different build of the model
+            // from the one sherpa uses, and small enough that failing to get it
+            // should not stop a run.
+            if (transcriber && cfg.vad_filter) {
+                fs::path vad;
+                std::string vad_error;
+                if (resolve_model("whisper-vad", ModelKind::WhisperVad, cfg.model_dir, progress,
+                                  &vad, &vad_error)) {
+                    transcriber->set_vad_model(vad);
+                } else {
+                    reporter.warn("voice activity detection unavailable, non-speech audio may "
+                                  "produce invented transcripts: " + vad_error);
+                }
+            }
         }
         if (!transcriber) {
             return false;
@@ -167,17 +182,19 @@ std::vector<MediaJob> Pipeline::enqueue(const std::vector<fs::path> &paths) {
             continue;
         }
 
-        // Separate microphone tracks are free perfect diarization, and
-        // downmixing throws that away permanently. Duplicated mono, which is
-        // common in exported video, is not worth splitting.
+        // Separate microphone tracks are free perfect diarization, but an
+        // ordinary stereo mix is not that: both channels carry the same
+        // sources, and splitting it yields two half transcripts of one
+        // conversation. Only channels that are largely independent of each
+        // other are treated as separate microphones.
         int tracks = 1;
         if (impl.cfg.split_channels && info.looks_multitrack() &&
             info.channels <= impl.cfg.max_split_channels) {
             double correlation = channel_correlation(impl.ffmpeg, path, 120.0);
-            if (correlation < impl.cfg.channel_dup_correlation) {
+            if (correlation < impl.cfg.channel_independence) {
                 tracks = info.channels;
                 impl.reporter.info(path.filename().string() + ": " + std::to_string(tracks) +
-                                   " separate tracks (correlation " +
+                                   " independent tracks (correlation " +
                                    std::to_string(correlation).substr(0, 4) + ")");
             }
         }

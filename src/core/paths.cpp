@@ -132,17 +132,20 @@ bool onnx_cuda_available() {
         // to the loader that will need it moments later.
         activate_gpu_runtime();
 
-        // All three must resolve. cuDNN and cuFFT are NVIDIA downloads that
-        // cannot be redistributed, and the CUDA provider is fetched alongside
-        // them rather than installed for machines that will never have them.
-        for (const wchar_t *name : {L"cudnn64_9.dll", L"cufft64_12.dll",
-                                    L"onnxruntime_providers_cuda.dll"}) {
-            HMODULE module = LoadLibraryExW(name, nullptr, LOAD_LIBRARY_AS_DATAFILE);
-            if (module == nullptr) {
-                return false;
-            }
-            FreeLibrary(module);
+        // A real code load, not LOAD_LIBRARY_AS_DATAFILE. A datafile load maps
+        // the image without resolving a single import, so it succeeds for a
+        // provider whose cuDNN and cuFFT dependencies are missing. Believing it
+        // meant asking onnxruntime for CUDA, which then failed the load for
+        // real, and sherpa-onnx aborts the process rather than degrading.
+        //
+        // Loading the provider properly resolves the whole chain, so this
+        // answers the only question that matters: will the CUDA provider
+        // actually come up.
+        HMODULE module = LoadLibraryW(L"onnxruntime_providers_cuda.dll");
+        if (module == nullptr) {
+            return false;
         }
+        FreeLibrary(module);
         return true;
     }();
     return available;
