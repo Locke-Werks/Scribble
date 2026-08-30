@@ -304,6 +304,21 @@ bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
     reporter.stage(job.file_id, Stage::Extracting);
     fs::path wav = cfg.work_dir / (sanitise_filename(source.stem().string()) + "." +
                                    std::to_string(job.file_id) + ".wav");
+
+    // Removed however this function exits. Every failure path used to leave its
+    // decoded audio behind, so a batch that failed part way through stranded a
+    // copy of every input as 16 kHz PCM: gigabytes, invisible, never collected.
+    struct WorkFile {
+        const fs::path &path;
+        bool keep;
+        ~WorkFile() {
+            if (!keep) {
+                std::error_code ec;
+                fs::remove(path, ec);
+            }
+        }
+    } work_file{wav, cfg.keep_work};
+
     if (!decode_to_wav(ffmpeg, source, wav, job.track_count > 1 ? job.track : -1, error)) {
         return false;
     }
@@ -423,10 +438,6 @@ bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
     std::vector<std::string> written;
     write_outputs(job, asr.segments, asr.language, &written);
 
-    if (!cfg.keep_work) {
-        std::error_code ec;
-        fs::remove(wav, ec);
-    }
     return true;
 }
 

@@ -1,6 +1,6 @@
 [product]
 name         = "ScribeEveryone"
-version      = "0.1.2"
+version      = "0.1.3"
 publisher    = "Locke Werks"
 description  = "Batch transcription with diarization and corpus-wide speaker identity"
 copyright    = "Locke Werks. Licensed under the GNU GPL v3."
