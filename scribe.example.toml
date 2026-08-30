@@ -1,0 +1,71 @@
+# ScribeEveryone configuration.
+#
+# Copy to scribe.toml next to where you run it, or to
+# %LOCALAPPDATA%\ScribeEveryone\scribe.toml. Every key is optional.
+# Unknown keys are rejected rather than ignored, because a silently dropped
+# setting produces a confusing run instead of an error.
+
+# -- paths --------------------------------------------------------------------
+out_dir     = "out"
+work_dir    = "work"
+db_path     = "scribe.db"
+mirror_tree = true          # reproduce the input folder structure under out_dir
+keep_work   = false         # keep decoded wavs after a file completes
+
+# -- transcription ------------------------------------------------------------
+model     = "large-v3"      # see: scribe models
+asr_accel = "auto"          # auto | cpu | cuda
+language  = ""              # empty detects per file
+beam_size = 5
+
+# Carrying context between windows means one hallucinated repetition
+# propagates through the rest of a long recording. Off costs a little
+# cross-window consistency and is the right default across a mixed corpus.
+condition_on_previous_text = false
+temperature_fallback       = true
+
+# Whisper has no hotword parameter, so these ride in on the initial prompt.
+# The cheapest large accuracy gain available, and it lands on proper nouns,
+# which are usually the words the transcript is read for.
+hotwords       = []
+initial_prompt = ""
+
+# -- diarization --------------------------------------------------------------
+diarize            = true
+onnx_accel         = "cpu"  # the segmentation and voiceprint models are small
+segmentation_model = "pyannote-segmentation-3.0"
+embedding_model    = "wespeaker-resnet293"
+
+# Leave at -1 to let clustering decide. Setting a known count bypasses
+# thresholding entirely and is far more reliable when the count is known.
+num_speakers = -1
+min_speakers = -1
+max_speakers = -1
+
+# -- corpus-wide speaker identity ---------------------------------------------
+# Shortest turn allowed to contribute to a voiceprint. Brief interjections
+# carry too little signal and drag the centroid off the speaker.
+embed_min_segment  = 3.0
+embed_max_segments = 8
+
+# Cosine above which a file's speaker joins an existing identity.
+match_threshold  = 0.65
+# Pairs between review and match get reported by `scribe dupes` for a human to
+# merge, rather than being silently split or silently joined.
+review_threshold = 0.50
+# Used by `scribe recluster`.
+cluster_threshold = 0.65
+
+# -- multi-track --------------------------------------------------------------
+# Separate microphone tracks are free perfect diarization, and downmixing
+# destroys that permanently.
+split_channels          = true
+max_split_channels      = 8
+# Above this correlation the channels are one mono source duplicated, which is
+# common in exported video, so splitting would double the work for nothing.
+channel_dup_correlation = 0.98
+
+# -- output -------------------------------------------------------------------
+formats   = ["srt", "md", "json"]
+overwrite = false
+recursive = true
