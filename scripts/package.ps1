@@ -119,6 +119,35 @@ $size = (Get-ChildItem $Payload -Recurse -File | Measure-Object Length -Sum).Sum
 $count = (Get-ChildItem $Payload -Recurse -File).Count
 Write-Host ("  {0} files, {1:N0} MB" -f $count, ($size / 1MB))
 
+# Payload members are extracted verbatim, so they must be signed here, before
+# forging. Signing the installer does nothing for the files inside it, and a
+# rebuild produces unsigned binaries every time, so this cannot be left to a
+# separate step that someone remembers to run.
+if (-not $SkipSign) {
+    $ours = Get-ChildItem $Payload -File |
+        Where-Object { $_.Extension -in '.exe', '.dll' } |
+        Where-Object { $_.Name -notlike 'Qt6*' } |
+        Where-Object { $_.Name -notlike 'onnxruntime*' } |
+        Where-Object { $_.Name -notlike 'cublas*' } |
+        Where-Object { $_.Name -notlike 'cudart*' } |
+        Where-Object { $_.Name -notlike 'opengl32sw*' } |
+        Where-Object { $_.Name -notlike 'D3Dcompiler*' } |
+        Where-Object { $_.Name -notlike 'dxcompiler*' } |
+        Where-Object { $_.Name -notlike 'dxil*' } |
+        # ffmpeg is a third-party redistributable. Stamping our certificate on
+        # someone else's binary claims an authorship we do not have.
+        Where-Object { $_.BaseName -notin 'ffmpeg', 'ffprobe' } |
+        ForEach-Object { $_.FullName }
+
+    if ($ours) {
+        & (Join-Path $PSScriptRoot 'sign.ps1') @ours
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error 'Signing the payload failed.'
+            exit 1
+        }
+    }
+}
+
 $unsigned = Get-ChildItem $Payload -Recurse -File -Include '*.exe', '*.dll' |
     Where-Object { (Get-AuthenticodeSignature $_.FullName).Status -ne 'Valid' } |
     ForEach-Object { $_.Name }

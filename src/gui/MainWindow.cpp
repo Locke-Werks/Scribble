@@ -89,8 +89,31 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
     QString openError;
     if (!controller_->open(cfg, &openError)) {
-        QMessageBox::critical(this, QStringLiteral("ScribeEveryone"),
-                              QStringLiteral("Could not open the database:\n%1").arg(openError));
+        // A database that cannot be opened is usually a path problem, not a
+        // corrupt file: a configured location that has since become read-only,
+        // or a stale config pointing somewhere that no longer exists. Falling
+        // back to the per-user default keeps the application usable instead of
+        // leaving an empty window behind a dismissed error box.
+        scribe::Config fallback = cfg;
+        fallback.db_path.clear();
+        fallback.work_dir.clear();
+
+        QString fallbackError;
+        if (controller_->open(fallback, &fallbackError)) {
+            cfg = controller_->config();
+            logDock_->append(
+                scribe::LogLevel::Warn,
+                QStringLiteral("Could not open the configured database (%1). Using %2 instead.")
+                    .arg(openError, QString::fromStdWString(cfg.db_path.wstring())));
+            speakerPanel_->setDatabase(controller_->database());
+            refreshSpeakerNames();
+        } else {
+            QMessageBox::critical(
+                this, QStringLiteral("ScribeEveryone"),
+                QStringLiteral("Could not open the database:\n%1\n\nThe fallback location "
+                               "also failed:\n%2")
+                    .arg(openError, fallbackError));
+        }
     } else {
         speakerPanel_->setDatabase(controller_->database());
         refreshSpeakerNames();

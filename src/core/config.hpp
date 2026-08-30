@@ -31,9 +31,15 @@ enum class GpuRuntimeMode {
 
 struct Config {
     // -- paths ------------------------------------------------------------
-    fs::path out_dir{"out"};
-    fs::path work_dir{"work"};
-    fs::path db_path{"scribe.db"};
+    //
+    // Empty means "not configured", and resolve() fills each one with a
+    // per-user location. They are not defaulted to relative paths, because the
+    // working directory of an installed application is its install directory,
+    // and under Program Files that is read-only: the database would fail to
+    // open on the first launch after installing.
+    fs::path out_dir;   ///< defaults to Documents\ScribeEveryone
+    fs::path work_dir;  ///< defaults to the local app data directory
+    fs::path db_path;   ///< defaults to the local app data directory
     fs::path model_dir;  ///< empty resolves to %LOCALAPPDATA%\ScribeEveryone\models
     bool mirror_tree = true;   ///< reproduce input folder structure under out_dir
     bool keep_work = false;    ///< keep decoded wavs after a file completes

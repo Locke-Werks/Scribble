@@ -373,9 +373,26 @@ void Config::resolve(const fs::path &root) {
         }
         p = p.lexically_normal();
     };
-    absolutise(out_dir);
-    absolutise(work_dir);
-    absolutise(db_path);
+
+    // A path the user actually asked for stays relative to where they asked,
+    // which keeps `--out out` meaning what it says from a shell. An unset path
+    // becomes a per-user location that is writable no matter where the program
+    // was started from.
+    if (db_path.empty()) {
+        db_path = scribe::app_data_dir() / "scribe.db";
+    } else {
+        absolutise(db_path);
+    }
+    if (work_dir.empty()) {
+        work_dir = scribe::app_data_dir() / "work";
+    } else {
+        absolutise(work_dir);
+    }
+    if (out_dir.empty()) {
+        out_dir = scribe::documents_dir() / "ScribeEveryone";
+    } else {
+        absolutise(out_dir);
+    }
 
     if (model_dir.empty()) {
         model_dir = scribe::default_model_dir();

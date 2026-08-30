@@ -17,6 +17,11 @@ fs::path app_data_dir();
 fs::path default_model_dir();
 fs::path default_config_path();
 
+/// %USERPROFILE%\Documents, where transcripts go by default. Resolved through
+/// the known folder API because the Documents folder is frequently redirected
+/// to OneDrive or a network share.
+fs::path documents_dir();
+
 /// Locates ffmpeg and ffprobe. Prefers the copies shipped beside the exe, then
 /// falls back to PATH. Returns an empty path when neither is present.
 fs::path find_ffmpeg();

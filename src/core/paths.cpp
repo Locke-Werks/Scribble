@@ -104,6 +104,22 @@ fs::path default_model_dir() { return app_data_dir() / "models"; }
 
 fs::path default_config_path() { return app_data_dir() / "scribe.toml"; }
 
+fs::path documents_dir() {
+#ifdef _WIN32
+    PWSTR raw = nullptr;
+    if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, nullptr, &raw))) {
+        fs::path base(raw);
+        CoTaskMemFree(raw);
+        return base;
+    }
+    const char *profile = std::getenv("USERPROFILE");
+    return profile ? fs::path(profile) / "Documents" : fs::current_path();
+#else
+    const char *home = std::getenv("HOME");
+    return home ? fs::path(home) : fs::current_path();
+#endif
+}
+
 fs::path find_ffmpeg() { return search_path(kFfmpegName); }
 
 fs::path find_ffprobe() { return search_path(kFfprobeName); }
