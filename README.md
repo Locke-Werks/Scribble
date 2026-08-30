@@ -61,6 +61,8 @@ Needs Visual Studio 2022, the CUDA toolkit, and Qt 6 for the GUI. Pass
 `-DSCRIBE_BUILD_GUI=OFF` to build only the command line tool, or
 `-DSCRIBE_CUDA=OFF` for a CPU-only build. See [docs/building.md](docs/building.md).
 
+`scripts/package.ps1` produces a signed installer.
+
 ## Use
 
 ```powershell

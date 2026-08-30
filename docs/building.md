@@ -79,3 +79,41 @@ must not be called on a UI thread.
 Models are downloaded on first use into `%LOCALAPPDATA%\ScribeEveryone\models`,
 not next to the executable. An install under Program Files stays read-only, and
 reinstalling does not discard several gigabytes of weights.
+
+## Packaging
+
+```powershell
+$env:AZURE_TENANT_ID = '...'
+$env:AZURE_CLIENT_ID = '...'
+$env:AZURE_CLIENT_SECRET = '...'
+.\scripts\package.ps1
+```
+
+Stages the payload, signs it, and forges `build\ScribeEveryone-Setup.exe` with
+Forge. `-SkipSign` produces a development build instead.
+
+Order matters. Payload members are extracted verbatim, so anything unsigned
+going in stays unsigned on disk regardless of the installer's own signature.
+The stub is signed before forging too, because the uninstaller is extracted
+from it at install time.
+
+The installer is around 500 MB, and roughly 490 MB of that is the CUDA
+redistributables. whisper.cpp links cuBLAS as a hard import, so the program
+will not start without them even to run on CPU, and `cublasLt64_13.dll` alone
+is 442 MB.
+
+Two things are deliberately left out:
+
+- **onnxruntime's CUDA provider**, 313 MB. It cannot load without cuDNN, and
+  NVIDIA's licence does not permit redistributing that, so it would fail to
+  initialise on every machine that did not already have cuDNN.
+- **cuDNN itself**, for the same licensing reason.
+
+Whisper is unaffected by both, so GPU transcription works out of the box.
+Diarization, voiceprints, isolation and Parakeet run on CPU unless the user
+installs cuDNN, which `paths.cpp` probes for at startup.
+
+`scripts/package.ps1` passes repository-relative paths to `lwforge` on purpose.
+Forge's `long_path()` adds the `\\?\` prefix to absolute paths, which disables
+Win32 path normalisation, so an absolute `--config` makes it resolve
+`product.icon` to a path still containing `..` and fail with `0x7b`.

@@ -1,9 +1,12 @@
 build/
 out/
 work/
+payload/
 .vs/
 *.user
 CMakeUserPresets.json
+*Setup.exe
+lwstub-signed.exe
 
 # Runtime state. The speaker store is the corpus, not the source.
 scribe.db

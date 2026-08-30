@@ -24,7 +24,11 @@
 #>
 
 param(
+    # lwforge invokes this as `sign.ps1 -FilePath "<installer>"`, so the alias
+    # is load-bearing: without it the --sign step fails with an unbound
+    # parameter after the container has already been written.
     [Parameter(Position = 0, ValueFromRemainingArguments = $true)]
+    [Alias('FilePath')]
     [string[]]$Paths
 )
 
@@ -70,13 +74,17 @@ if (-not $Paths -or $Paths.Count -eq 0) {
         Write-Error "No paths given and $releaseDir does not exist."
         exit 1
     }
-    # Qt's DLLs arrive signed by the Qt Company already, so re-signing them
-    # would replace a valid upstream signature with ours for no benefit.
+    # Qt's DLLs arrive signed by the Qt Company and onnxruntime's by Microsoft.
+    # Re-signing either replaces a valid upstream signature with ours for no
+    # benefit, and the CUDA provider alone is over 300 MB to rewrite.
     $Paths = Get-ChildItem $releaseDir -File |
         Where-Object { $_.Extension -in '.exe', '.dll' } |
         Where-Object { $_.Name -notlike 'Qt6*' } |
+        Where-Object { $_.Name -notlike 'onnxruntime*' } |
         Where-Object { $_.Name -notlike 'opengl32sw*' } |
         Where-Object { $_.Name -notlike 'D3Dcompiler*' } |
+        Where-Object { $_.Name -notlike 'dxcompiler*' } |
+        Where-Object { $_.Name -notlike 'dxil*' } |
         ForEach-Object { $_.FullName }
 }
 
