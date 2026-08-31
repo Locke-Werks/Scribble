@@ -132,11 +132,17 @@ jobs:
             if ($ptx -notcontains $need) { throw "sm_$need PTX is missing; those GPUs would have no JIT path" }
           }
 
+      # Deliberately no $LASTEXITCODE guard. A .ps1 only sets that variable by
+      # calling `exit`, so a clean run leaves it exactly as the step's fresh
+      # pwsh process found it, which is unset. PowerShell evaluates
+      # `$null -ne 0` as true, so the guard that used to sit here failed the
+      # release on every successful staging. stage-payload.ps1 reports failure
+      # as a terminating error, and that already exits pwsh non-zero.
       - name: Stage payload
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           ./scripts/stage-payload.ps1 -Config Release
-          if ($LASTEXITCODE -ne 0) { throw 'staging failed' }
 
       # Only our own binaries. Everything else in the payload belongs to Qt,
       # NVIDIA, Microsoft or ffmpeg, and the signing action takes a folder, so

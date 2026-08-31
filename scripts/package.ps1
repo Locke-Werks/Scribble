@@ -74,13 +74,15 @@ foreach ($tool in @($Stub, $Forge)) {
 
 # Staging lives in its own script so the release workflow assembles the same
 # payload this does. See scripts/stage-payload.ps1.
+#
+# None of the calls to our own scripts below check $LASTEXITCODE. A .ps1 only
+# sets it by calling `exit`, so on success it keeps whatever the session
+# already had, which is unset in a fresh shell, and `$null -ne 0` is true. Every
+# script here sets $ErrorActionPreference = 'Stop', so a real failure arrives as
+# a terminating error and stops this script without a guard.
 $OursList = Join-Path $RepoRoot 'build\payload-ours.txt'
 & (Join-Path $PSScriptRoot 'stage-payload.ps1') `
     -Config $Config -BinDir $BinDir -Payload $Payload -OurBinariesList $OursList
-if ($LASTEXITCODE -ne 0) {
-    Write-Error 'Staging the payload failed.'
-    exit 1
-}
 
 # Payload members are extracted verbatim, so they must be signed here, before
 # forging. Signing the installer does nothing for the files inside it, and a
@@ -90,10 +92,6 @@ if (-not $SkipSign) {
     $ours = @(Get-Content $OursList | Where-Object { $_ -and $_.Trim() })
     if ($ours) {
         & (Join-Path $PSScriptRoot 'sign.ps1') @ours
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error 'Signing the payload failed.'
-            exit 1
-        }
     }
 }
 
@@ -113,10 +111,6 @@ $StubCopy = Join-Path $RepoRoot 'build\lwstub-signed.exe'
 Copy-Item $Stub.FullName $StubCopy -Force
 if (-not $SkipSign) {
     & (Join-Path $PSScriptRoot 'sign.ps1') $StubCopy
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error 'Signing the stub failed.'
-        exit 1
-    }
 }
 
 # Paths are passed relative to the repository root on purpose. lwforge resolves
