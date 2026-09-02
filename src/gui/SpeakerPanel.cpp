@@ -5,6 +5,7 @@
 #include <QInputDialog>
 #include <QLabel>
 #include <QMenu>
+#include <QMessageBox>
 #include <QPushButton>
 #include <QTableView>
 #include <QVBoxLayout>
@@ -109,15 +110,30 @@ void SpeakerPanel::showContextMenu(const QPoint &pos) {
     view_->setCurrentIndex(idx);
     const std::int64_t globalId = model_->globalIdAt(idx.row());
 
+    const auto speaker = db_->global(globalId);
+
     QMenu menu(this);
+    QAction *enrollAct = menu.addAction(speaker && speaker->enrolled
+                                            ? QStringLiteral("Add reference clips...")
+                                            : QStringLiteral("Enroll this voice..."));
+    menu.addSeparator();
     QAction *mergeAct = menu.addAction(QStringLiteral("Merge into..."));
     QAction *splitAct = menu.addAction(QStringLiteral("Split this file's speaker out"));
     splitAct->setEnabled(currentFile_ >= 0);
     menu.addSeparator();
     QAction *noteAct = menu.addAction(QStringLiteral("Add note..."));
 
+    QAction *unenrollAct = nullptr;
+    if (speaker && speaker->enrolled) {
+        unenrollAct = menu.addAction(QStringLiteral("Drop reference clips"));
+    }
+
     QAction *chosen = menu.exec(view_->viewport()->mapToGlobal(pos));
-    if (chosen == mergeAct) {
+    if (chosen == enrollAct) {
+        emit enrollRequested(globalId);
+    } else if (chosen == unenrollAct) {
+        dropEnrollment(globalId);
+    } else if (chosen == mergeAct) {
         mergeInto(globalId);
     } else if (chosen == splitAct) {
         splitThisFile(globalId);
@@ -178,6 +194,27 @@ void SpeakerPanel::splitThisFile(std::int64_t globalId) {
         return;
     }
     db_->split_local(localId);
+    refresh();
+    emit speakersChanged();
+}
+
+void SpeakerPanel::dropEnrollment(std::int64_t globalId) {
+    const auto speaker = db_->global(globalId);
+    if (!speaker) {
+        return;
+    }
+    const auto answer = QMessageBox::question(
+        this, QStringLiteral("Drop reference clips"),
+        QStringLiteral("Remove the %1 reference clip%2 backing %3?\n\n"
+                       "They stop steering how files are matched. The identity itself and "
+                       "everything already attributed to it stay where they are.")
+            .arg(speaker->n_clips)
+            .arg(speaker->n_clips == 1 ? "" : "s")
+            .arg(QString::fromStdString(speaker->display())));
+    if (answer != QMessageBox::Yes) {
+        return;
+    }
+    db_->delete_enrollments_for(globalId);
     refresh();
     emit speakersChanged();
 }

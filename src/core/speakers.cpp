@@ -82,6 +82,32 @@ std::vector<float> centroid_of(const std::vector<std::vector<float>> &vectors,
     return out;
 }
 
+float score_against(const EnrolledProfile &profile, const std::vector<float> &voiceprint) {
+    float best = 0.0f;
+    for (const auto &clip : profile.clips) {
+        best = std::max(best, cosine(voiceprint, clip));
+    }
+    return best;
+}
+
+std::vector<EnrolledProfile> load_enrolled_profiles(Database &db) {
+    std::unordered_map<std::int64_t, size_t> index;
+    std::vector<EnrolledProfile> out;
+    for (const auto &clip : db.all_enrollments()) {
+        if (clip.centroid.empty()) {
+            continue;
+        }
+        auto it = index.find(clip.global_id);
+        if (it == index.end()) {
+            index[clip.global_id] = out.size();
+            out.push_back(EnrolledProfile{clip.global_id, {clip.centroid}});
+        } else {
+            out[it->second].clips.push_back(clip.centroid);
+        }
+    }
+    return out;
+}
+
 std::vector<SpeakerResolution> resolve_against_store(Database &db, const MatchInput &input) {
     std::vector<SpeakerResolution> results(input.locals.size());
     for (size_t i = 0; i < input.locals.size(); ++i) {
@@ -91,20 +117,97 @@ std::vector<SpeakerResolution> resolve_against_store(Database &db, const MatchIn
 
     const auto existing = db.globals();
 
-    std::vector<Candidate> candidates;
-    candidates.reserve(input.locals.size() * existing.size());
-    for (size_t i = 0; i < input.locals.size(); ++i) {
-        if (input.locals[i].centroid.empty()) {
-            continue;
-        }
-        for (const auto &g : existing) {
-            auto centroid = db.global_centroid(g.id);
-            if (centroid.empty()) {
+    std::vector<EnrolledProfile> owned;
+    const std::vector<EnrolledProfile> *profiles = input.profiles;
+    if (profiles == nullptr) {
+        owned = load_enrolled_profiles(db);
+        profiles = &owned;
+    }
+
+    std::vector<bool> local_taken(input.locals.size(), false);
+    std::unordered_set<std::int64_t> global_taken;
+
+    // -- enrolled identities first ------------------------------------------
+    //
+    // Ahead of the rest rather than mixed in with them, so a person the user
+    // vouched for cannot lose their own speaker to an identity the corpus
+    // invented for itself at a marginally higher score.
+    std::unordered_map<std::int64_t, int> claims;
+    if (!profiles->empty()) {
+        std::vector<Candidate> enrolled_candidates;
+        for (size_t i = 0; i < input.locals.size(); ++i) {
+            if (input.locals[i].centroid.empty()) {
                 continue;
             }
+            for (const auto &profile : *profiles) {
+                float sim = score_against(profile, input.locals[i].centroid);
+                if (sim >= input.enrolled_threshold) {
+                    enrolled_candidates.push_back({sim, static_cast<int>(i), profile.global_id});
+                }
+            }
+        }
+        std::sort(enrolled_candidates.begin(), enrolled_candidates.end(),
+                  [](const Candidate &a, const Candidate &b) {
+                      return a.similarity > b.similarity;
+                  });
+
+        for (const auto &c : enrolled_candidates) {
+            const auto local = static_cast<size_t>(c.local_index);
+            if (local_taken[local]) {
+                continue;
+            }
+            // The cannot-link constraint still applies unless collapsing is
+            // switched on: without it, one enrolled voice quietly absorbs every
+            // speaker in the file sitting above the lowered threshold.
+            if (!input.collapse_enrolled && global_taken.count(c.global_id)) {
+                continue;
+            }
+            local_taken[local] = true;
+            global_taken.insert(c.global_id);
+            claims[c.global_id]++;
+
+            auto &res = results[local];
+            res.global_id = c.global_id;
+            res.similarity = c.similarity;
+            res.minted = false;
+            res.enrolled = true;
+        }
+
+        // An identity holding more than one of this file's speakers means
+        // diarization split one person, and the resolution says so rather than
+        // reporting a match that reads as ordinary.
+        for (auto &res : results) {
+            if (res.enrolled && claims[res.global_id] > 1) {
+                res.collapsed = true;
+            }
+        }
+    }
+
+    // -- everything the corpus worked out for itself -------------------------
+    //
+    // Centroids are read once here rather than once per comparison. The store
+    // is queried for every candidate pair, and a corpus with a few hundred
+    // identities in it makes that thousands of statements per file.
+    std::unordered_map<std::int64_t, std::vector<float>> centroids;
+    for (const auto &g : existing) {
+        if (g.enrolled) {
+            continue;  // handled above, and its centroid is not the match key
+        }
+        auto centroid = db.global_centroid(g.id);
+        if (!centroid.empty()) {
+            centroids.emplace(g.id, std::move(centroid));
+        }
+    }
+
+    std::vector<Candidate> candidates;
+    for (size_t i = 0; i < input.locals.size(); ++i) {
+        if (local_taken[i] || input.locals[i].centroid.empty()) {
+            continue;
+        }
+        for (const auto &[id, centroid] : centroids) {
             float sim = cosine(input.locals[i].centroid, centroid);
             if (sim >= input.threshold) {
-                candidates.push_back({sim, static_cast<int>(i), g.id});
+                candidates.push_back({sim, static_cast<int>(i), id});
             }
         }
     }
@@ -113,9 +216,6 @@ std::vector<SpeakerResolution> resolve_against_store(Database &db, const MatchIn
     // lets a mediocre match claim a voice that a later, better one needed.
     std::sort(candidates.begin(), candidates.end(),
               [](const Candidate &a, const Candidate &b) { return a.similarity > b.similarity; });
-
-    std::vector<bool> local_taken(input.locals.size(), false);
-    std::unordered_set<std::int64_t> global_taken;
 
     for (const auto &c : candidates) {
         if (local_taken[static_cast<size_t>(c.local_index)]) {
@@ -144,9 +244,25 @@ std::vector<SpeakerResolution> resolve_against_store(Database &db, const MatchIn
             if (local.centroid.empty()) {
                 continue;
             }
+            // Not enough speech to be worth a name. The row stays, so the
+            // decision is visible and reversible if the floor moves, but it
+            // resolves to nobody and its words keep the file-local label.
+            if (input.min_speaker_speech > 0.0 &&
+                local.total_duration < input.min_speaker_speech) {
+                res.below_floor = true;
+                continue;
+            }
             res.global_id = db.create_global(local.centroid, local.total_duration);
             res.similarity = 1.0f;
             res.minted = true;
+            db.assign_local(local.id, res.global_id, res.similarity);
+        } else if (res.enrolled) {
+            // Deliberately not folded in. What makes an enrolled profile worth
+            // having is that it is exactly the audio a human vouched for, and
+            // averaging observations into it walks it back towards the inferred
+            // centroid it was created to replace.
+            db.assign_local(local.id, res.global_id, res.similarity);
+            db.refresh_global_usage(res.global_id);
         } else {
             // Fold the new voiceprint into the identity, weighted by how many
             // observations already back it, so one bad file cannot drag an
@@ -161,9 +277,8 @@ std::vector<SpeakerResolution> resolve_against_store(Database &db, const MatchIn
                 db.update_global_centroid(res.global_id, updated, stored->n_locals + 1,
                                           stored->total_duration + local.total_duration);
             }
+            db.assign_local(local.id, res.global_id, res.similarity);
         }
-
-        db.assign_local(local.id, res.global_id, res.similarity);
 
         auto stored = db.global(res.global_id);
         res.display = stored ? stored->display() : std::string{};
@@ -347,6 +462,13 @@ std::vector<DuplicateCandidate> duplicate_candidates(Database &db, float low, fl
             auto ita = centroids.find(a.id);
             auto itb = centroids.find(b.id);
             if (ita == centroids.end() || itb == centroids.end()) {
+                continue;
+            }
+
+            // Two enrolled identities are two people a human named from
+            // reference audio. Offering them as a possible duplicate asks the
+            // user to second-guess a statement they already made.
+            if (a.enrolled && b.enrolled) {
                 continue;
             }
 

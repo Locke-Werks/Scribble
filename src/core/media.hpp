@@ -37,6 +37,14 @@ bool probe_media(const fs::path &ffprobe, const fs::path &input, MediaInfo *info
 bool decode_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
                    int channel, std::string *error);
 
+/// Decodes a time range to 16 kHz mono. `end` at or below `start` means "to the
+/// end". The seek is an input option and the length an output option, which is
+/// the one spelling of a range that means the same thing across ffmpeg
+/// versions, and it also keeps a clip near the end of a long recording from
+/// decoding everything before it.
+bool decode_range_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
+                         double start, double end, std::string *error);
+
 /// Decodes at an arbitrary rate and channel count. Source separation runs at
 /// the model's own rate on stereo, so it needs the audio before the pipeline
 /// collapses it to 16 kHz mono.

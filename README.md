@@ -30,6 +30,14 @@ matches into it. Name it once and every transcript that person appears in says
 their name. No enrollment step, no sitting there recording reference clips of
 your coworkers like a weirdo. The corpus enrols itself.
 
+You can still enrol somebody by hand, and for the handful of people who turn up
+in everything it is worth twenty seconds. Not because the automatic path needs
+help naming them, but because diarization sometimes splits one person into four
+speakers inside a single recording, and a rule that is otherwise correct then
+forces three of those to become new identities. Reference audio of a known
+person is the one piece of evidence strong enough to overrule that, and it is
+the difference between five speakers and ninety.
+
 **Start here: [docs/usage.md](docs/usage.md).** It explains what the four
 intimidating toolbar buttons do, in the order you'll need them. It exists because I
 built this and still could not remember what Recluster did.
@@ -40,6 +48,7 @@ built this and still could not remember what Recluster did.
 - Transcribes with whisper.cpp on the GPU, streaming text as it decodes
 - Diarizes with a pyannote segmentation model through sherpa-onnx
 - Pulls a voiceprint per speaker per file and matches it against the store
+- Takes reference clips of people you know, when you would rather not guess
 - Writes SRT, WebVTT, Markdown, JSON, plain text, TSV
 - Keeps it all in one SQLite file, so renaming somebody costs zero inference
 - Resumes. Files already done get skipped unless they changed on disk.
@@ -75,6 +84,7 @@ way.
 scribble run D:\recordings
 scribble speakers
 scribble name 12 "Will"
+scribble enroll "Will" clips\will-*.wav
 scribble render
 ```
 

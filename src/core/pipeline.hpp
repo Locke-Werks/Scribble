@@ -45,6 +45,13 @@ public:
         int globals_after = 0;
         int merged = 0;
         int split = 0;
+        /// Voiceprints left where they were because a human enrolled the
+        /// identity holding them. Not reconciled, on purpose.
+        int pinned = 0;
+        /// Voiceprints skipped for carrying less speech than min_speaker_speech
+        /// and belonging to nobody. Clustering them would mint the identities
+        /// the floor exists to prevent.
+        int below_floor = 0;
     };
     ReclusterResult recluster();
 

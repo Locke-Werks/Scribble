@@ -1,16 +1,18 @@
 #include "db.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <stdexcept>
 
 #include <sqlite3.h>
 
+#include "speakers.hpp"
 #include "util.hpp"
 
 namespace scribble {
 namespace {
 
-constexpr int kSchemaVersion = 1;
+constexpr int kSchemaVersion = 2;
 
 constexpr const char *kSchema = R"sql(
 PRAGMA journal_mode=WAL;
@@ -62,8 +64,29 @@ CREATE TABLE IF NOT EXISTS global_speakers (
     centroid   BLOB,
     n_locals   INTEGER NOT NULL DEFAULT 0,
     total_dur  REAL    NOT NULL DEFAULT 0,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+    enrolled   INTEGER NOT NULL DEFAULT 0
+);
+
+-- Reference audio of a known person, supplied by hand rather than harvested
+-- from a recording. One row per clip, not one per identity: a voice recorded
+-- on a phone and in a room occupies two places in embedding space, and their
+-- mean is a point that matches neither. Matching scores against the closest
+-- clip instead, so enrolling a person under each condition they turn up in
+-- widens the profile rather than blurring it.
+CREATE TABLE IF NOT EXISTS enrollments (
+    id         INTEGER PRIMARY KEY,
+    global_id  INTEGER NOT NULL REFERENCES global_speakers(id) ON DELETE CASCADE,
+    source     TEXT    NOT NULL DEFAULT '',
+    start      REAL    NOT NULL DEFAULT 0,
+    end        REAL    NOT NULL DEFAULT 0,
+    duration   REAL    NOT NULL DEFAULT 0,
+    centroid   BLOB,
+    n_windows  INTEGER NOT NULL DEFAULT 0,
+    coherence  REAL    NOT NULL DEFAULT 0,
     created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+CREATE INDEX IF NOT EXISTS idx_enrollments_global ON enrollments(global_id);
 
 CREATE TABLE IF NOT EXISTS local_speakers (
     id         INTEGER PRIMARY KEY,
@@ -282,6 +305,37 @@ struct Database::Impl {
             throw std::runtime_error("sqlite exec failed: " + message);
         }
     }
+
+    bool has_column(const char *table, const char *column) const {
+        std::string sql = std::string("PRAGMA table_info(") + table + ")";
+        Stmt s(db, sql.c_str());
+        while (s.step()) {
+            if (s.col_text(1) == column) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// Brings an older file up to the current schema.
+    ///
+    /// The schema above is all CREATE TABLE IF NOT EXISTS, which adds tables to
+    /// an existing database but never columns, so a column added to a table
+    /// that already exists has to be applied here or it is silently absent on
+    /// every database created before the change. Driven off the columns
+    /// actually present rather than off the recorded version: the version was
+    /// written with INSERT OR IGNORE from the first release, so a file that
+    /// predates versioning claims whatever version it was stamped with.
+    void migrate() {
+        if (!has_column("global_speakers", "enrolled")) {
+            exec("ALTER TABLE global_speakers ADD COLUMN enrolled INTEGER NOT NULL DEFAULT 0");
+        }
+
+        Stmt s(db, "INSERT INTO meta(key, value) VALUES('schema_version', ?) "
+                   "ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+        s.bind(1, std::to_string(kSchemaVersion));
+        s.run();
+    }
 };
 
 Database::Database(const fs::path &path) : impl_(std::make_unique<Impl>()) {
@@ -302,10 +356,7 @@ Database::Database(const fs::path &path) : impl_(std::make_unique<Impl>()) {
 
     sqlite3_busy_timeout(impl_->db, 30000);
     impl_->exec(kSchema);
-
-    Stmt set(impl_->db, "INSERT OR IGNORE INTO meta(key, value) VALUES('schema_version', ?)");
-    set.bind(1, std::to_string(kSchemaVersion));
-    set.run();
+    impl_->migrate();
 }
 
 Database::~Database() {
@@ -599,10 +650,14 @@ void Database::update_global_centroid(std::int64_t global_id,
 }
 
 std::vector<GlobalSpeaker> Database::globals() const {
+    // Enrolled identities sort first. They are the ones a human vouched for,
+    // and a store with three hundred invented speakers in it buries them
+    // otherwise.
     Stmt s(impl_->db,
-           "SELECT g.id, g.name, g.notes, g.n_locals, g.total_dur, g.created_at, "
-           "(SELECT COUNT(DISTINCT file_id) FROM local_speakers WHERE global_id = g.id) "
-           "FROM global_speakers g ORDER BY g.total_dur DESC, g.id");
+           "SELECT g.id, g.name, g.notes, g.n_locals, g.total_dur, g.created_at, g.enrolled, "
+           "(SELECT COUNT(DISTINCT file_id) FROM local_speakers WHERE global_id = g.id), "
+           "(SELECT COUNT(*) FROM enrollments WHERE global_id = g.id) "
+           "FROM global_speakers g ORDER BY g.enrolled DESC, g.total_dur DESC, g.id");
     std::vector<GlobalSpeaker> out;
     while (s.step()) {
         GlobalSpeaker g;
@@ -612,7 +667,9 @@ std::vector<GlobalSpeaker> Database::globals() const {
         g.n_locals = static_cast<int>(s.col_int(3));
         g.total_duration = s.col_double(4);
         g.created_at = s.col_text(5);
-        g.n_files = static_cast<int>(s.col_int(6));
+        g.enrolled = s.col_int(6) != 0;
+        g.n_files = static_cast<int>(s.col_int(7));
+        g.n_clips = static_cast<int>(s.col_int(8));
         out.push_back(std::move(g));
     }
     return out;
@@ -620,8 +677,9 @@ std::vector<GlobalSpeaker> Database::globals() const {
 
 std::optional<GlobalSpeaker> Database::global(std::int64_t id) const {
     Stmt s(impl_->db,
-           "SELECT g.id, g.name, g.notes, g.n_locals, g.total_dur, g.created_at, "
-           "(SELECT COUNT(DISTINCT file_id) FROM local_speakers WHERE global_id = g.id) "
+           "SELECT g.id, g.name, g.notes, g.n_locals, g.total_dur, g.created_at, g.enrolled, "
+           "(SELECT COUNT(DISTINCT file_id) FROM local_speakers WHERE global_id = g.id), "
+           "(SELECT COUNT(*) FROM enrollments WHERE global_id = g.id) "
            "FROM global_speakers g WHERE g.id = ?");
     s.bind(1, id);
     if (!s.step()) {
@@ -634,7 +692,9 @@ std::optional<GlobalSpeaker> Database::global(std::int64_t id) const {
     g.n_locals = static_cast<int>(s.col_int(3));
     g.total_duration = s.col_double(4);
     g.created_at = s.col_text(5);
-    g.n_files = static_cast<int>(s.col_int(6));
+    g.enrolled = s.col_int(6) != 0;
+    g.n_files = static_cast<int>(s.col_int(7));
+    g.n_clips = static_cast<int>(s.col_int(8));
     return g;
 }
 
@@ -687,9 +747,19 @@ int Database::merge_globals(std::int64_t from, std::int64_t into) {
     stats.bind(1, into).bind(2, into).bind(3, into);
     stats.run();
 
+    // Reference clips follow the identity they describe. Losing them would
+    // silently downgrade a merged-away person back to an inferred voiceprint.
+    Stmt clips(impl_->db, "UPDATE enrollments SET global_id = ? WHERE global_id = ?");
+    clips.bind(1, into).bind(2, from);
+    clips.run();
+
     Stmt del(impl_->db, "DELETE FROM global_speakers WHERE id = ?");
     del.bind(1, from);
     del.run();
+
+    // Rebuilds the surviving centroid from clips when there now are any, which
+    // also sets the enrolled flag if the merge brought one in.
+    refresh_enrollment(into);
 
     // Dismissals naming the identity that just disappeared are meaningless and
     // would otherwise suppress a genuine future candidate at the same id.
@@ -717,9 +787,12 @@ std::int64_t Database::split_local(std::int64_t local_id) {
 
 void Database::delete_empty_globals() {
     // A named identity is kept even with nothing attached: the name is human
-    // work and the voice may well reappear in the next batch.
+    // work and the voice may well reappear in the next batch. An enrolled one
+    // is kept for the stronger reason that it is supposed to sit there empty
+    // until the person turns up, which is the entire point of enrolling ahead
+    // of a batch.
     impl_->exec(
-        "DELETE FROM global_speakers WHERE name = '' AND id NOT IN "
+        "DELETE FROM global_speakers WHERE name = '' AND enrolled = 0 AND id NOT IN "
         "(SELECT DISTINCT global_id FROM local_speakers WHERE global_id IS NOT NULL)");
 }
 
@@ -733,6 +806,153 @@ std::vector<std::int64_t> Database::globals_in_file(std::int64_t file_id) const 
         out.push_back(s.col_int(0));
     }
     return out;
+}
+
+void Database::refresh_global_usage(std::int64_t id) {
+    // Derived rather than accumulated. Re-running a file clears its old local
+    // speakers without decrementing anything, so a counter kept by addition
+    // drifts upwards on every re-run.
+    Stmt s(impl_->db,
+           "UPDATE global_speakers SET "
+           "n_locals = (SELECT COUNT(*) FROM local_speakers WHERE global_id = ?), "
+           "total_dur = (SELECT COALESCE(SUM(total_dur), 0) FROM local_speakers "
+           "WHERE global_id = ?) WHERE id = ?");
+    s.bind(1, id).bind(2, id).bind(3, id);
+    s.run();
+}
+
+// -- enrolment --------------------------------------------------------------
+
+std::int64_t Database::create_named_global(const std::string &name) {
+    Stmt s(impl_->db,
+           "INSERT INTO global_speakers(name, centroid, n_locals, total_dur) "
+           "VALUES(?, NULL, 0, 0)");
+    s.bind(1, name);
+    s.run();
+    return sqlite3_last_insert_rowid(impl_->db);
+}
+
+std::int64_t Database::add_enrollment(const EnrollmentClip &clip) {
+    Stmt s(impl_->db,
+           "INSERT INTO enrollments(global_id, source, start, end, duration, centroid, "
+           "n_windows, coherence) VALUES(?, ?, ?, ?, ?, ?, ?, ?)");
+    s.bind(1, clip.global_id)
+        .bind(2, clip.source)
+        .bind(3, clip.start)
+        .bind(4, clip.end)
+        .bind(5, clip.duration)
+        .bind(6, clip.centroid)
+        .bind(7, clip.n_windows)
+        .bind(8, static_cast<double>(clip.coherence));
+    s.run();
+    std::int64_t id = sqlite3_last_insert_rowid(impl_->db);
+    refresh_enrollment(clip.global_id);
+    return id;
+}
+
+namespace {
+
+std::vector<EnrollmentClip> read_clips(Stmt &s) {
+    std::vector<EnrollmentClip> out;
+    while (s.step()) {
+        EnrollmentClip c;
+        c.id = s.col_int(0);
+        c.global_id = s.col_int(1);
+        c.source = s.col_text(2);
+        c.start = s.col_double(3);
+        c.end = s.col_double(4);
+        c.duration = s.col_double(5);
+        c.centroid = s.col_vector(6);
+        c.n_windows = static_cast<int>(s.col_int(7));
+        c.coherence = static_cast<float>(s.col_double(8));
+        c.created_at = s.col_text(9);
+        out.push_back(std::move(c));
+    }
+    return out;
+}
+
+constexpr const char *kClipColumns =
+    "id, global_id, source, start, end, duration, centroid, n_windows, coherence, created_at";
+
+}  // namespace
+
+std::vector<EnrollmentClip> Database::enrollments(std::int64_t global_id) const {
+    Stmt s(impl_->db, (std::string("SELECT ") + kClipColumns +
+                       " FROM enrollments WHERE global_id = ? ORDER BY id")
+                          .c_str());
+    s.bind(1, global_id);
+    return read_clips(s);
+}
+
+std::vector<EnrollmentClip> Database::all_enrollments() const {
+    Stmt s(impl_->db,
+           (std::string("SELECT ") + kClipColumns + " FROM enrollments ORDER BY global_id, id")
+               .c_str());
+    return read_clips(s);
+}
+
+void Database::delete_enrollment(std::int64_t clip_id) {
+    std::int64_t owner = -1;
+    {
+        Stmt find(impl_->db, "SELECT global_id FROM enrollments WHERE id = ?");
+        find.bind(1, clip_id);
+        if (!find.step()) {
+            return;
+        }
+        owner = find.col_int(0);
+    }
+    Stmt del(impl_->db, "DELETE FROM enrollments WHERE id = ?");
+    del.bind(1, clip_id);
+    del.run();
+    refresh_enrollment(owner);
+}
+
+int Database::delete_enrollments_for(std::int64_t global_id) {
+    Stmt del(impl_->db, "DELETE FROM enrollments WHERE global_id = ?");
+    del.bind(1, global_id);
+    del.run();
+    int removed = sqlite3_changes(impl_->db);
+    refresh_enrollment(global_id);
+    return removed;
+}
+
+void Database::refresh_enrollment(std::int64_t global_id) {
+    auto clips = enrollments(global_id);
+
+    // The stored centroid is the mean of the clips, used for display and for
+    // the duplicate review. Matching does not read it: it scores against each
+    // clip separately, because a person recorded down a phone and in a room
+    // occupies two places and the midpoint between them is nobody.
+    std::vector<std::vector<float>> parts;
+    std::vector<double> weights;
+    for (const auto &c : clips) {
+        if (c.centroid.empty()) {
+            continue;
+        }
+        parts.push_back(c.centroid);
+        weights.push_back(std::max(1.0, c.duration));
+    }
+
+    if (parts.empty()) {
+        // Dropping the last clip un-enrols the identity but leaves whatever
+        // centroid the corpus had already built for it, so a speaker that was
+        // matching before enrolment goes back to matching the way it did.
+        Stmt s(impl_->db, "UPDATE global_speakers SET enrolled = 0 WHERE id = ?");
+        s.bind(1, global_id);
+        s.run();
+        return;
+    }
+
+    auto centroid = centroid_of(parts, weights);
+    Stmt s(impl_->db, "UPDATE global_speakers SET centroid = ?, enrolled = 1 WHERE id = ?");
+    s.bind(1, centroid).bind(2, global_id);
+    s.run();
+}
+
+bool Database::is_enrolled(std::int64_t global_id) const {
+    Stmt s(impl_->db, "SELECT enrolled FROM global_speakers WHERE id = ?");
+    s.bind(1, global_id);
+    return s.step() && s.col_int(0) != 0;
 }
 
 // -- duplicate review -------------------------------------------------------
@@ -788,6 +1008,7 @@ void Database::clear_all() {
         "DELETE FROM outputs;"
         "DELETE FROM segments;"
         "DELETE FROM local_speakers;"
+        "DELETE FROM enrollments;"
         "DELETE FROM global_speakers;"
         "DELETE FROM dismissed_pairs;"
         "DELETE FROM files;"
@@ -840,12 +1061,16 @@ Database::Counts Database::counts() const {
            "SELECT (SELECT COUNT(*) FROM files),"
            "       (SELECT COUNT(*) FROM segments),"
            "       (SELECT COUNT(*) FROM global_speakers),"
-           "       (SELECT COUNT(*) FROM global_speakers WHERE name != '')");
+           "       (SELECT COUNT(*) FROM global_speakers WHERE name != ''),"
+           "       (SELECT COUNT(*) FROM global_speakers WHERE enrolled != 0),"
+           "       (SELECT COUNT(*) FROM enrollments)");
     if (s.step()) {
         c.files = static_cast<int>(s.col_int(0));
         c.segments = static_cast<int>(s.col_int(1));
         c.speakers = static_cast<int>(s.col_int(2));
         c.named_speakers = static_cast<int>(s.col_int(3));
+        c.enrolled_speakers = static_cast<int>(s.col_int(4));
+        c.enrollment_clips = static_cast<int>(s.col_int(5));
     }
     return c;
 }

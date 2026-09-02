@@ -80,6 +80,7 @@ private:
 
     // Identity
     QDoubleSpinBox *embedMinSegment_ = nullptr;
+    QDoubleSpinBox *minSpeakerSpeech_ = nullptr;
     QSpinBox *embedMaxSegments_ = nullptr;
     QDoubleSpinBox *matchThreshold_ = nullptr;
     QDoubleSpinBox *reviewThreshold_ = nullptr;

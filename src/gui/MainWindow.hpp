@@ -52,6 +52,7 @@ private slots:
     void openSettings();
     void openOutputFolder();
     void reviewDuplicates();
+    void enrollVoice(std::int64_t globalId);
     void clearDatabase();
     void onSpeakersChanged();
     void startRun();
@@ -109,6 +110,7 @@ private:
     QAction *openOutputAct_ = nullptr;
     QAction *gpuRuntimeAct_ = nullptr;
     QAction *clearDatabaseAct_ = nullptr;
+    QAction *enrollAct_ = nullptr;
 
     QFrame *gpuInfoBar_ = nullptr;
     QLabel *gpuInfoLabel_ = nullptr;

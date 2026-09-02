@@ -19,6 +19,7 @@ add_library(scribble_core STATIC
     asr.cpp
     diarize.cpp
     embed.cpp
+    enroll.cpp
     separate.cpp
     speakers.cpp
     render.cpp

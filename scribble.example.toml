@@ -97,6 +97,30 @@ max_speakers = -1
 embed_min_segment  = 3.0
 embed_max_segments = 8
 
+# Total speech, in clock time across one file, before a voice is allowed to
+# become a speaker of its own.
+#
+# Diarization has no notion of whether a cluster is worth having. It hands back
+# a speaker for a two-word interjection off-mic as readily as for the person
+# running the meeting, and because two speakers in one file may never share an
+# identity, every one of those blips is FORCED to mint a new one. That is how a
+# three-person recording ends up with thirty-seven speakers.
+#
+# This gates naming, not matching, and not transcription:
+#
+#   - A brief speaker can still join somebody who already exists. That is what
+#     recovers the two-second tail of a long speaker that diarization split.
+#   - It simply cannot invent anybody new.
+#   - Its words stay in the transcript regardless, under the file-local label.
+#     Declining to name a voice and throwing away what it said are different
+#     things, and only the first one is wanted here.
+#
+# 8 seconds is the point where somebody stops being background and starts being
+# a participant. Raise it if you only care about people who actually hold the
+# floor, lower it for interviews where a short answer still matters, 0 to name
+# every voice however brief.
+min_speaker_speech = 8.0
+
 # Cosine similarity above which a file's speaker joins an existing identity.
 # Raise it if different people are being merged. Lower it if one person keeps
 # splitting into several identities.
@@ -111,6 +135,42 @@ review_threshold = 0.50
 
 # Used by `scribble recluster`.
 cluster_threshold = 0.65
+
+# -- enrolled identities ------------------------------------------------------
+# See: scribble enroll <name> <clip>...
+#
+# An enrolled identity is one you handed reference audio of a known person,
+# rather than one the corpus worked out for itself. It behaves differently on
+# purpose, and these two knobs are how.
+
+# Similarity above which a file's speaker joins an enrolled identity.
+#
+# Below match_threshold deliberately. The far side of that comparison is clean
+# audio of somebody you named, not a centroid averaged out of whatever happened
+# to be in the corpus, so a score that is ambiguous against one is not ambiguous
+# against the other. Raise it if an enrolled person is absorbing other voices.
+enroll_match_threshold = 0.55
+
+# Let one enrolled identity take several speakers out of the same file.
+#
+# This is the fix for nine speakers in a three-person recording, and it works by
+# breaking the rule that normally protects you: two speakers in one file may not
+# be the same identity, because diarization already said they were different
+# people. That rule is right most of the time and catastrophic when diarization
+# over-splits, because the extra clusters are then FORCED to invent new
+# identities and reclustering enforces the same rule so it cannot undo them.
+#
+# A reference clip of a known person outranks a per-file clustering threshold,
+# so where one exists the extra clusters collapse back into whoever they came
+# from. Nothing changes for identities that are not enrolled. Turn this off to
+# keep the strict rule and accept the junk.
+enroll_collapse = true
+
+# Analysis window over a reference clip, and the least speech a clip must carry
+# after silence is thrown out. Shorter than min_clip and the profile matches on
+# the microphone rather than on the person.
+enroll_window   = 4.0
+enroll_min_clip = 3.0
 
 # Recluster when a batch finishes, and re-render whatever moved.
 #

@@ -1,7 +1,7 @@
 # Using Scribble
 
 You pointed it at a folder. It chewed through 200 files. Now there are 47 people
-called `SPEAKER_0031` and you are staring at a toolbar with four buttons whose
+called `SPEAKER_0031` and you are staring at a toolbar full of buttons whose
 names made sense to me at the time.
 
 Cool. Let's fix that.
@@ -21,7 +21,35 @@ That order is load bearing. Do it backwards and you just do it twice. If you
 want to know why, it's [down there](#why-that-order). If you don't, fine, copy
 the block and go.
 
-## The four buttons nobody understands
+## The buttons nobody understands
+
+### Enroll voice
+
+Teaches it a voice you already know, from clips of that person and nobody else.
+
+Everything else in this program infers who people are. This is the one place you
+get to just tell it. Pick or name a person, drop in some clips, and it reports
+what it found in each one before it commits anything.
+
+Two numbers come back per clip. **Speech** is what was left after the silence
+got thrown out, so a thirty-second clip with twenty-five seconds of room tone
+reports five seconds and gets rejected. **One voice** is how much the clip agrees
+with itself: high means one person throughout, low means a second voice, a music
+bed, or two recordings spliced together. A low number there is almost always
+somebody else talking, and a clip with two people in it produces a confident
+profile of nobody, which is worse than no profile at all.
+
+Reach it from the toolbar for a new person, or right-click somebody in the
+speakers panel to attach clips to them.
+
+Two or three short clips from different recordings beat one long clip from one.
+The profile keeps them separately and matches against the closest, so a voice
+enrolled on a phone and in a room recognises both. One clip averaged from both
+recognises neither.
+
+**This is the fix for nine speakers in a three-person recording.** It is not a
+tuning knob, it is a different kind of evidence, and it is the only thing that
+breaks the tie described [below](#one-person-split-into-six-ids).
 
 ### Start
 
@@ -147,6 +175,9 @@ scribble run <path>...        transcribe files and folders
 scribble speakers             list everyone in the corpus
 scribble name <id> <name>     name one
 scribble merge <from> <into>  fold one into another
+scribble enroll <who> <clip>... teach a known voice from reference audio
+scribble enrollments [id]     who is enrolled, and from what
+scribble unenroll <id> [clip] drop reference clips
 scribble dupes                pairs that might be the same person
 scribble dismiss <id> <id>    stop asking me about this pair
 scribble clear                delete everything, after backing it up
@@ -167,17 +198,58 @@ Flags worth knowing:
 | `--backend parakeet` | Faster on English. Needs the GPU runtime to be worth anything. |
 | `--overwrite` | Redo files already marked done |
 | `--threshold 0.7` | Fussier about matching speakers |
+| `--min-speech 8` | Seconds a voice must speak to earn an identity. 0 names everyone. |
+| `--range 12-30` | Enrol only those seconds of the clip |
 | `--no-diarize` | Just words. No speakers. No opinions. |
 
 `run` walks folders recursively and skips what it already finished, so pointing
 it at the same folder twice is free. It only redoes a file if the size or
 timestamp changed, or you asked with `--overwrite`.
 
+`enroll` takes a name or an id. A name that already exists joins that person, a
+name that does not creates them, and an id is always exact:
+
+```powershell
+scribble enroll "Will" clips\will-phone.wav clips\will-room.wav
+scribble enroll 12 --range 90-140 meetings\standup.m4a
+scribble enrollments
+```
+
+Enrolling does not touch transcripts already on disk. It changes how files are
+matched from that point on, so re-run the files you want it applied to.
+
 ## When it looks wrong
 
-**One person split into six IDs.** Merge them, or drop `match_threshold` a bit.
-Different mics, different rooms, different days. This is the normal failure and
-it's not going away.
+### One person split into six IDs
+
+Or nine speakers out of a three-person recording, which is the same failure
+being loud about it.
+
+Diarization over-split the file, and then a rule that is right almost all the
+time made it permanent. Two speakers inside one file are never allowed to be the
+same identity, because diarization already said they were different people. So
+when it splits one person into four clusters, one of them gets the right
+identity and the other three are *forced* to invent new ones. Reclustering will
+not save you: it enforces the same rule.
+
+Two things fix it, and they fix different halves.
+
+**Raise `min_speaker_speech`.** It is 8 seconds by default: a voice with less
+speech than that in a file does not get to become a speaker. Their words are
+still transcribed, they just carry the file-local label instead of an identity.
+This kills the blips, the crosstalk and the off-mic interjections, which is most
+of the count. It does not merge anybody, and a brief speaker can still join a
+person who already exists, so a real speaker's short tail is not lost.
+
+**Enrol the people who actually recur.** That handles the other half: the real
+speaker diarization split five ways. A reference clip outranks a per-file
+clustering threshold, so those extra clusters collapse back into whoever they
+came from instead of minting junk. Nothing else fixes that, because all five are
+in one file and the rules otherwise forbid them from sharing an identity.
+
+Beyond those: set `num_speakers` if you genuinely know the count, which bypasses
+thresholding entirely and beats any tuning. Raise `diar_cluster_threshold` above
+0.5 so the file splits less eagerly. Then merge what's left by hand.
 
 **Two people welded into one ID.** Raise `match_threshold`. To undo the damage,
 speakers panel, right click, split that file's speaker out into a fresh
@@ -209,19 +281,26 @@ re-render. See above. At length.
 
 In descending order of how much they actually matter:
 
-1. **`hotwords`.** Names, places, jargon, that acronym your industry won't shut
+1. **`min_speaker_speech`.** The default 8 seconds is the difference between a
+   speaker list you can read and one you scroll. Lower it only if a one-sentence
+   contribution genuinely needs a name of its own.
+2. **`hotwords`.** Names, places, jargon, that acronym your industry won't shut
    up about. Whisper has no hotword parameter so these ride in on the initial
    prompt. Highest return per second of effort in the entire program, and it
    lands on exactly the words anyone reads a transcript to find.
-2. **`isolate = "auto"`.** Strips music and background. Massive on broadcast and
+3. **`isolate = "auto"`.** Strips music and background. Massive on broadcast and
    field recordings. Auto checks the noise floor first so it doesn't run on
    clean speech and make it slightly worse for no reason.
-3. **Don't turn on `split_channels`** unless you genuinely recorded each person
+4. **Enrol the regulars.** If the same five people are in four hundred files,
+   twenty seconds of reference audio each is the difference between five
+   identities and ninety. It also stops those five drifting, because an enrolled
+   profile is an anchor rather than a running average.
+5. **Don't turn on `split_channels`** unless you genuinely recorded each person
    on their own mic. If you did, congratulations, that's free perfect
    diarization and you should absolutely enable it.
-4. **`large-v3`**, unless throughput matters more, then `large-v3-turbo` gets
+6. **`large-v3`**, unless throughput matters more, then `large-v3-turbo` gets
    you most of the way at several times the speed.
-5. **Leave `condition_on_previous_text` off.** It's off. Leave it. Turning it on
+7. **Leave `condition_on_previous_text` off.** It's off. Leave it. Turning it on
    lets one hallucinated loop poison the rest of a long recording in exchange
    for marginally better consistency. Bad trade.
 

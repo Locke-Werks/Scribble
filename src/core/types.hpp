@@ -41,6 +41,13 @@ struct SpeakerResolution {
     std::string display;      ///< assigned name, else SPEAKER_0042
     float similarity = 0.0f;  ///< cosine against the matched centroid
     bool minted = false;      ///< true when this voice was not seen before
+    bool enrolled = false;    ///< matched a human-supplied reference profile
+    /// Diarization split this person into more than one cluster in this file
+    /// and the enrolled profile put them back together.
+    bool collapsed = false;
+    /// Too little speech to earn an identity, and it matched nobody who already
+    /// had one. Its words are still in the transcript.
+    bool below_floor = false;
     double total_duration = 0.0;
 };
 
@@ -65,6 +72,13 @@ struct GlobalSpeaker {
     int n_files = 0;
     double total_duration = 0.0;
     std::string created_at;
+
+    /// A human handed this identity reference audio of a known person. That is
+    /// a stronger claim than anything clustering can infer, so an enrolled
+    /// centroid is an anchor: it is never averaged with observations, and it
+    /// wins its speakers ahead of identities the corpus invented for itself.
+    bool enrolled = false;
+    int n_clips = 0;  ///< reference clips backing the enrolment
 
     std::string display() const;
 };

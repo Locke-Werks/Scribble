@@ -31,6 +31,10 @@ public:
 signals:
     void speakersChanged();
     void reviewDuplicatesRequested();
+    /// Asks the window to open the enrolment dialog on this identity, or on a
+    /// new one when the id is negative. The panel does not open it itself
+    /// because enrolment needs the live config, which the window owns.
+    void enrollRequested(std::int64_t globalId);
     void status(const QString &message);
 
 private slots:
@@ -41,6 +45,7 @@ private:
     std::int64_t selectedGlobal() const;
     void updateCount();
     void mergeInto(std::int64_t globalId);
+    void dropEnrollment(std::int64_t globalId);
     void splitThisFile(std::int64_t globalId);
     void addNote(std::int64_t globalId);
 

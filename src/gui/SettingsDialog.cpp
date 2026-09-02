@@ -371,6 +371,26 @@ QWidget *SettingsDialog::buildIdentityTab() {
     embedMaxSegments_->setRange(1, 64);
     embedMaxSegments_->setValue(base_.embed_max_segments);
 
+    minSpeakerSpeech_ = new QDoubleSpinBox(tab);
+    minSpeakerSpeech_->setRange(0.0, 120.0);
+    minSpeakerSpeech_->setSingleStep(1.0);
+    minSpeakerSpeech_->setSuffix(QStringLiteral(" s"));
+    minSpeakerSpeech_->setSpecialValueText(QStringLiteral("off"));
+    minSpeakerSpeech_->setValue(base_.min_speaker_speech);
+    minSpeakerSpeech_->setToolTip(QStringLiteral(
+        "Total speech a voice must carry in a file before it is allowed to become a "
+        "speaker of its own.\n\n"
+        "Diarization has no notion of whether a cluster is worth having, and hands back a "
+        "speaker for a two-word interjection off-mic as readily as for the person running "
+        "the meeting. Since two speakers in one file may not share an identity, every one "
+        "of those blips is forced to mint a new one, which is how a three-person recording "
+        "ends up with thirty-seven speakers.\n\n"
+        "This gates naming, not matching. A brief speaker can still join somebody who "
+        "already exists, which is what recovers the two-second tail of a long speaker that "
+        "diarization split. It just cannot invent anybody. Its words stay in the "
+        "transcript either way, under the file-local label.\n\n"
+        "Set to off to name every voice however brief."));
+
     matchThreshold_ = new QDoubleSpinBox(tab);
     matchThreshold_->setRange(0.0, 1.0);
     matchThreshold_->setSingleStep(0.01);
@@ -408,6 +428,7 @@ QWidget *SettingsDialog::buildIdentityTab() {
 
     form->addRow(QStringLiteral("Min embed segment"), embedMinSegment_);
     form->addRow(QStringLiteral("Max embed segments"), embedMaxSegments_);
+    form->addRow(QStringLiteral("Min speech per speaker"), minSpeakerSpeech_);
     form->addRow(QStringLiteral("Match threshold"), matchThreshold_);
     form->addRow(QStringLiteral("Review threshold"), reviewThreshold_);
     form->addRow(QStringLiteral("Cluster threshold"), clusterThreshold_);
@@ -509,6 +530,7 @@ scribble::Config SettingsDialog::config() const {
     c.channel_independence = static_cast<float>(channelIndependence_->value());
 
     c.embed_min_segment = embedMinSegment_->value();
+    c.min_speaker_speech = minSpeakerSpeech_->value();
     c.embed_max_segments = embedMaxSegments_->value();
     c.match_threshold = static_cast<float>(matchThreshold_->value());
     c.review_threshold = static_cast<float>(reviewThreshold_->value());

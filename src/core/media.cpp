@@ -130,6 +130,57 @@ bool decode_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path
     return decode_audio(ffmpeg, input, output, channel, kSampleRate, 1, error);
 }
 
+bool decode_range_to_wav(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
+                         double start, double end, std::string *error) {
+    std::error_code ec;
+    fs::create_directories(output.parent_path(), ec);
+
+    fs::path tmp = output;
+    tmp += ".part.wav";
+
+    std::vector<std::string> args = {"-nostdin", "-hide_banner", "-loglevel", "error", "-y"};
+    if (start > 0.0) {
+        args.push_back("-ss");
+        args.push_back(std::to_string(start));
+    }
+    args.push_back("-i");
+    args.push_back(input.string());
+    if (end > start) {
+        args.push_back("-t");
+        args.push_back(std::to_string(end - start));
+    }
+    for (const char *a : {"-vn", "-sn", "-dn", "-map", "0:a:0", "-af",
+                          "aresample=16000", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le",
+                          "-f", "wav"}) {
+        args.emplace_back(a);
+    }
+    args.push_back(tmp.string());
+
+    std::string out;
+    int code = 1;
+    if (!run_process(ffmpeg, args, &out, &code, error)) {
+        fs::remove(tmp, ec);
+        return false;
+    }
+    if (code != 0) {
+        fs::remove(tmp, ec);
+        if (error) {
+            *error = "ffmpeg failed: " + first_line_of(out);
+        }
+        return false;
+    }
+
+    fs::remove(output, ec);
+    fs::rename(tmp, output, ec);
+    if (ec) {
+        if (error) {
+            *error = "cannot move decoded audio into place: " + ec.message();
+        }
+        return false;
+    }
+    return true;
+}
+
 bool decode_audio(const fs::path &ffmpeg, const fs::path &input, const fs::path &output,
                   int channel, int sample_rate, int channels, std::string *error) {
     std::error_code ec;

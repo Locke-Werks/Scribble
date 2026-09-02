@@ -248,10 +248,16 @@ Config Config::load(const fs::path &file, std::string *error) {
 
     get_double("embed_min_segment", cfg.embed_min_segment);
     get_int("embed_max_segments", cfg.embed_max_segments);
+    get_double("min_speaker_speech", cfg.min_speaker_speech);
     get_float("match_threshold", cfg.match_threshold);
     get_float("review_threshold", cfg.review_threshold);
     get_float("cluster_threshold", cfg.cluster_threshold);
     get_bool("recluster_after_batch", cfg.recluster_after_batch);
+
+    get_float("enroll_match_threshold", cfg.enroll_match_threshold);
+    get_bool("enroll_collapse", cfg.enroll_collapse);
+    get_double("enroll_window", cfg.enroll_window);
+    get_double("enroll_min_clip", cfg.enroll_min_clip);
 
     get_bool("split_channels", cfg.split_channels);
     get_int("max_split_channels", cfg.max_split_channels);
@@ -274,8 +280,10 @@ Config Config::load(const fs::path &file, std::string *error) {
         "diarize", "onnx_accel", "isolate_accel", "gpu_runtime", "segmentation_model",
         "embedding_model",
         "num_speakers", "min_speakers", "max_speakers", "diar_cluster_threshold",
-        "embed_min_segment", "embed_max_segments", "match_threshold",
+        "embed_min_segment", "embed_max_segments", "min_speaker_speech",
+        "match_threshold",
         "review_threshold", "cluster_threshold", "recluster_after_batch",
+        "enroll_match_threshold", "enroll_collapse", "enroll_window", "enroll_min_clip",
         "split_channels", "max_split_channels", "channel_independence",
         "formats", "overwrite", "recursive", "decode_lookahead",
     };
@@ -352,10 +360,16 @@ void Config::save(const fs::path &file) const {
 
     out << "embed_min_segment  = " << embed_min_segment << "\n";
     out << "embed_max_segments = " << embed_max_segments << "\n";
+    out << "min_speaker_speech = " << min_speaker_speech << "\n";
     out << "match_threshold    = " << match_threshold << "\n";
     out << "review_threshold   = " << review_threshold << "\n";
     out << "cluster_threshold  = " << cluster_threshold << "\n";
     out << "recluster_after_batch = " << (recluster_after_batch ? "true" : "false") << "\n\n";
+
+    out << "enroll_match_threshold = " << enroll_match_threshold << "\n";
+    out << "enroll_collapse        = " << (enroll_collapse ? "true" : "false") << "\n";
+    out << "enroll_window          = " << enroll_window << "\n";
+    out << "enroll_min_clip        = " << enroll_min_clip << "\n\n";
 
     out << "split_channels          = " << (split_channels ? "true" : "false") << "\n";
     out << "max_split_channels      = " << max_split_channels << "\n";
@@ -427,6 +441,20 @@ std::string Config::validate() const {
     }
     if (cluster_threshold <= 0.0f || cluster_threshold >= 1.0f) {
         problems.push_back("cluster_threshold must be between 0 and 1");
+    }
+    if (enroll_match_threshold <= 0.0f || enroll_match_threshold >= 1.0f) {
+        problems.push_back("enroll_match_threshold must be between 0 and 1");
+    }
+    if (enroll_min_clip < 1.0) {
+        problems.push_back("enroll_min_clip below 1s cannot characterise a voice: a profile "
+                           "built from that little audio matches on the microphone rather "
+                           "than on the person");
+    }
+    if (enroll_window < 1.0) {
+        problems.push_back("enroll_window must be at least 1s");
+    }
+    if (min_speaker_speech < 0.0) {
+        problems.push_back("min_speaker_speech cannot be negative; 0 disables the floor");
     }
     if (embed_min_segment < 0.5) {
         problems.push_back("embed_min_segment below 0.5s produces voiceprints too noisy to "

@@ -33,6 +33,7 @@
 #include <cmath>
 
 #include "DuplicatesDialog.hpp"
+#include "EnrollDialog.hpp"
 #include "GpuRuntimeDialog.hpp"
 #include "LogDock.hpp"
 #include "PipelineController.hpp"
@@ -200,6 +201,7 @@ void MainWindow::buildUi() {
     speakerPanel_ = new SpeakerPanel(splitter_);
     splitter_->addWidget(speakerPanel_);
     connect(speakerPanel_, &SpeakerPanel::speakersChanged, this, &MainWindow::onSpeakersChanged);
+    connect(speakerPanel_, &SpeakerPanel::enrollRequested, this, &MainWindow::enrollVoice);
     connect(speakerPanel_, &SpeakerPanel::reviewDuplicatesRequested, this,
             &MainWindow::reviewDuplicates);
     connect(speakerPanel_, &SpeakerPanel::status, this,
@@ -293,6 +295,7 @@ void MainWindow::buildActions() {
     stopAct_ = new QAction(QStringLiteral("Stop"), this);
     reclusterAct_ = new QAction(QStringLiteral("Recluster"), this);
     rerenderAct_ = new QAction(QStringLiteral("Re-render"), this);
+    enrollAct_ = new QAction(QStringLiteral("Enroll Voice"), this);
     settingsAct_ = new QAction(QStringLiteral("Settings"), this);
     openOutputAct_ = new QAction(QStringLiteral("Open Output Folder"), this);
 
@@ -301,7 +304,7 @@ void MainWindow::buildActions() {
     // two presentations come from one action without a second string to
     // translate or keep in step.
     for (QAction *a : {addFilesAct_, addFolderAct_, startAct_, pauseAct_, stopAct_,
-                       reclusterAct_, rerenderAct_, settingsAct_, openOutputAct_}) {
+                       reclusterAct_, rerenderAct_, enrollAct_, settingsAct_, openOutputAct_}) {
         a->setIconText(a->text().toUpper());
     }
 
@@ -312,6 +315,7 @@ void MainWindow::buildActions() {
     connect(stopAct_, &QAction::triggered, controller_, &PipelineController::stop);
     connect(reclusterAct_, &QAction::triggered, controller_, &PipelineController::recluster);
     connect(rerenderAct_, &QAction::triggered, this, [this] { controller_->rerender(true); });
+    connect(enrollAct_, &QAction::triggered, this, [this] { enrollVoice(-1); });
     connect(settingsAct_, &QAction::triggered, this, &MainWindow::openSettings);
     connect(openOutputAct_, &QAction::triggered, this, &MainWindow::openOutputFolder);
 
@@ -327,6 +331,7 @@ void MainWindow::buildActions() {
     toolbar->addAction(pauseAct_);
     toolbar->addAction(stopAct_);
     toolbar->addSeparator();
+    toolbar->addAction(enrollAct_);
     toolbar->addAction(reclusterAct_);
     toolbar->addAction(rerenderAct_);
     toolbar->addSeparator();
@@ -351,6 +356,7 @@ void MainWindow::buildActions() {
     runMenu->addAction(rerenderAct_);
 
     auto *toolsMenu = menuBar()->addMenu(QStringLiteral("Tools"));
+    toolsMenu->addAction(enrollAct_);
     toolsMenu->addAction(settingsAct_);
     auto *reviewAct = toolsMenu->addAction(QStringLiteral("Review Duplicates"));
     connect(reviewAct, &QAction::triggered, this, &MainWindow::reviewDuplicates);
@@ -396,6 +402,10 @@ void MainWindow::onBusyChanged(bool busy) {
     startAct_->setEnabled(!busy);
     reclusterAct_->setEnabled(!busy);
     rerenderAct_->setEnabled(!busy);
+    // Enrolment writes to the same database the running pipeline holds
+    // transactions on. Allowed to queue behind one and it would sit on the UI
+    // thread waiting out the busy timeout, so it waits for the batch instead.
+    enrollAct_->setEnabled(!busy);
     settingsAct_->setEnabled(!busy);
     pauseAct_->setEnabled(busy);
     stopAct_->setEnabled(busy);
@@ -521,6 +531,23 @@ void MainWindow::maybeOfferGpuRuntime() {
                        "against 113s on CPU.")
             .arg(QString::fromStdString(status.summary())));
     gpuInfoBar_->setVisible(true);
+}
+
+void MainWindow::enrollVoice(std::int64_t globalId) {
+    if (!controller_->database()) {
+        return;
+    }
+    if (controller_->busy()) {
+        statusLabel_->setText(QStringLiteral("Enrolment waits for the batch to finish."));
+        return;
+    }
+
+    EnrollDialog dialog(controller_->database(), controller_->config(), this);
+    if (globalId >= 0) {
+        dialog.selectSpeaker(globalId);
+    }
+    connect(&dialog, &EnrollDialog::enrolled, this, &MainWindow::onSpeakersChanged);
+    dialog.exec();
 }
 
 void MainWindow::reviewDuplicates() {
@@ -693,7 +720,18 @@ void MainWindow::handleResolved(const scribble::EvSpeakersResolved &ev) {
         }
     }
     transcript_->applyResolutions(ev.file_id, map);
-    queueModel_->setSpeakerCount(ev.file_id, static_cast<int>(ev.resolutions.size()));
+
+    // Distinct people, not diarization clusters. An enrolled identity can take
+    // several of a file's speakers, and counting the resolutions would report
+    // the number diarization guessed rather than the number that survived it,
+    // which is the number the column exists to show.
+    QSet<std::int64_t> people;
+    for (const auto &r : ev.resolutions) {
+        if (r.global_id >= 0) {
+            people.insert(r.global_id);
+        }
+    }
+    queueModel_->setSpeakerCount(ev.file_id, static_cast<int>(people.size()));
 
     // Resolution can mint new global identities, so refresh names and the panel.
     speakerPanel_->refresh();

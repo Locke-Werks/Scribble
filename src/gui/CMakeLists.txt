@@ -16,6 +16,7 @@ set(GUI_SOURCES
     SpeakerModel.cpp
     SpeakerPanel.cpp
     DuplicatesDialog.cpp
+    EnrollDialog.cpp
     SettingsDialog.cpp
     GpuRuntimeDialog.cpp
     LogDock.cpp
@@ -37,6 +38,7 @@ set(GUI_HEADERS
     SpeakerModel.hpp
     SpeakerPanel.hpp
     DuplicatesDialog.hpp
+    EnrollDialog.hpp
     SettingsDialog.hpp
     GpuRuntimeDialog.hpp
     LogDock.hpp

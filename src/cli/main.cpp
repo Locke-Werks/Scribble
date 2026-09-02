@@ -10,6 +10,7 @@
 
 #include "config.hpp"
 #include "db.hpp"
+#include "enroll.hpp"
 #include "gpu_runtime.hpp"
 #include "models.hpp"
 #include "paths.hpp"
@@ -61,8 +62,20 @@ public:
         if (const auto *e = std::get_if<EvSpeakersResolved>(&event)) {
             clear_line();
             for (const auto &r : e->resolutions) {
+                // "collapsed" says diarization split this person and the
+                // enrolled profile put them back together, which otherwise
+                // looks like the same line printed twice for no reason.
+                if (r.below_floor) {
+                    std::fprintf(stderr, "  %s -> unnamed, only %.0fs of speech\n",
+                                 r.local_label.c_str(), r.total_duration);
+                    continue;
+                }
+                const char *note = r.minted      ? " [new]"
+                                   : r.collapsed ? " [enrolled, collapsed]"
+                                   : r.enrolled  ? " [enrolled]"
+                                                 : "";
                 std::fprintf(stderr, "  %s -> %s%s (%.2f)\n", r.local_label.c_str(),
-                             r.display.c_str(), r.minted ? " [new]" : "", r.similarity);
+                             r.display.c_str(), note, r.similarity);
             }
             return;
         }
@@ -136,6 +149,9 @@ void print_usage() {
         "  scribble speakers             list every speaker in the corpus\n"
         "  scribble name <id> <name>     name a speaker\n"
         "  scribble merge <from> <into>  fold one speaker into another\n"
+        "  scribble enroll <who> <clip>...  teach a known voice from reference audio\n"
+        "  scribble enrollments [id]     show enrolled voices and their clips\n"
+        "  scribble unenroll <id> [clip] drop reference clips\n"
         "  scribble dupes                report speakers that may be the same person\n"
         "  scribble dismiss <id> <id>    rule a pair out of future duplicate reports\n"
         "  scribble clear                delete every transcript and speaker\n"
@@ -157,6 +173,8 @@ void print_usage() {
         "  --onnx-accel <dev>  auto, cpu or cuda for diarization and isolation\n"
         "  --asr-accel <dev>   auto, cpu or cuda for transcription\n"
         "  --threshold <n>     speaker match threshold, 0 to 1\n"
+        "  --min-speech <s>    seconds a voice must speak to earn an identity, 0 for none\n"
+        "  --range <a>-<b>     seconds of the clip to enrol, e.g. --range 12-30\n"
         "  --no-diarize        transcribe without speaker separation\n"
         "  --overwrite         redo files already marked done\n"
         "  --yes               skip the confirmation on destructive commands\n"
@@ -180,6 +198,8 @@ struct Args {
     std::string onnx_accel;
     std::string asr_accel;
     float threshold = -1.0f;
+    double min_speech = -1.0;
+    std::string range;
     bool no_diarize = false;
     bool overwrite = false;
     bool assume_yes = false;
@@ -233,6 +253,10 @@ bool parse_args(int argc, char **argv, Args *args, std::string *error) {
             args->onnx_accel = value_for(i, "--onnx-accel");
         } else if (arg == "--asr-accel") {
             args->asr_accel = value_for(i, "--asr-accel");
+        } else if (arg == "--min-speech") {
+            args->min_speech = std::stod(value_for(i, "--min-speech"));
+        } else if (arg == "--range") {
+            args->range = value_for(i, "--range");
         } else if (arg == "--threshold") {
             args->threshold = std::stof(value_for(i, "--threshold"));
         } else if (!arg.empty() && arg.front() == '-') {
@@ -256,12 +280,197 @@ int cmd_speakers(Database &db) {
         std::printf("no speakers yet\n");
         return 0;
     }
-    std::printf("%-8s %-28s %6s %6s  %s\n", "id", "name", "files", "clips", "speech");
+    std::printf("%-8s %-28s %-9s %6s %6s  %s\n", "id", "name", "enrolled", "files", "clips",
+                "speech");
     for (const auto &s : speakers) {
-        std::printf("%-8lld %-28s %6d %6d  %s\n", static_cast<long long>(s.id),
-                    s.display().c_str(), s.n_files, s.n_locals,
+        char enrolled[16] = "-";
+        if (s.enrolled) {
+            std::snprintf(enrolled, sizeof(enrolled), "%d clip%s", s.n_clips,
+                          s.n_clips == 1 ? "" : "s");
+        }
+        std::printf("%-8lld %-28s %-9s %6d %6d  %s\n", static_cast<long long>(s.id),
+                    s.display().c_str(), enrolled, s.n_files, s.n_locals,
                     format_duration(s.total_duration).c_str());
     }
+    return 0;
+}
+
+/// Resolves the person named on the command line. A number is an existing
+/// identity, anything else is a name: an exact match joins that person, and no
+/// match creates them. Guessing between similar names would be worse than
+/// either, so an ambiguous name is an error rather than a coin flip.
+bool resolve_target(Database &db, const std::string &who, std::int64_t *id, std::string *name,
+                    std::string *error) {
+    if (!who.empty() && who.find_first_not_of("0123456789") == std::string::npos) {
+        *id = std::stoll(who);
+        if (!db.global(*id)) {
+            *error = "no speaker with id " + who;
+            return false;
+        }
+        return true;
+    }
+
+    std::vector<std::int64_t> matches;
+    for (const auto &g : db.globals()) {
+        if (iequals(g.name, who)) {
+            matches.push_back(g.id);
+        }
+    }
+    if (matches.size() > 1) {
+        *error = "more than one speaker is called " + who + ", use the id instead";
+        return false;
+    }
+    if (matches.size() == 1) {
+        *id = matches.front();
+        return true;
+    }
+
+    *id = -1;
+    *name = who;
+    return true;
+}
+
+int cmd_enroll(Database &db, const Config &cfg, const std::vector<std::string> &positional,
+               const std::string &range) {
+    if (positional.size() < 2) {
+        std::fprintf(stderr,
+                     "usage: scribble enroll <name or id> <clip>...\n"
+                     "\n"
+                     "Reference audio of one person, and only that person. Several clips\n"
+                     "under different conditions beat one long clip: a voice on a phone\n"
+                     "and the same voice in a room are two different things to match\n"
+                     "against, and enrolling both recognises both.\n");
+        return 2;
+    }
+
+    std::int64_t global_id = -1;
+    std::string name;
+    std::string error;
+    if (!resolve_target(db, positional[0], &global_id, &name, &error)) {
+        std::fprintf(stderr, "%s\n", error.c_str());
+        return 2;
+    }
+
+    double range_start = 0.0;
+    double range_end = 0.0;
+    if (!range.empty()) {
+        const auto dash = range.find('-');
+        if (dash == std::string::npos) {
+            std::fprintf(stderr, "--range wants <start>-<end> in seconds\n");
+            return 2;
+        }
+        range_start = std::stod(range.substr(0, dash));
+        range_end = std::stod(range.substr(dash + 1));
+        if (range_end <= range_start) {
+            std::fprintf(stderr, "--range end must be after its start\n");
+            return 2;
+        }
+    }
+
+    auto enroller = Enroller::create(cfg, {}, &error);
+    if (!enroller) {
+        std::fprintf(stderr, "%s\n", error.c_str());
+        return 1;
+    }
+
+    EnrollOptions opts;
+    opts.window = cfg.enroll_window;
+    opts.hop = std::max(1.0, cfg.enroll_window / 2.0);
+    opts.min_speech = cfg.enroll_min_clip;
+
+    int added = 0;
+    for (size_t i = 1; i < positional.size(); ++i) {
+        EnrollSource source;
+        source.path = positional[i];
+        source.start = range_start;
+        source.end = range_end;
+
+        EnrollClipResult clip;
+        std::string clip_error;
+        if (!enroller->analyse(source, opts, &clip, &clip_error)) {
+            std::fprintf(stderr, "  %s: %s\n", source.path.filename().string().c_str(),
+                         clip_error.c_str());
+            continue;
+        }
+        if (!clip.usable) {
+            std::fprintf(stderr, "  %s: skipped, %s\n", source.path.filename().string().c_str(),
+                         clip.problem.c_str());
+            continue;
+        }
+
+        global_id = commit_enrollment(db, global_id, name, clip);
+        ++added;
+        std::printf("  %s: %.1fs over %d windows, coherence %.2f%s\n",
+                    source.path.filename().string().c_str(), clip.duration, clip.windows,
+                    clip.coherence, clip.problem.empty() ? "" : "  <- check this clip");
+        if (!clip.problem.empty()) {
+            std::fprintf(stderr, "    %s\n", clip.problem.c_str());
+        }
+    }
+
+    if (added == 0) {
+        std::fprintf(stderr, "nothing enrolled\n");
+        return 1;
+    }
+
+    auto stored = db.global(global_id);
+    std::printf("\n%s is enrolled from %d clip%s. Run `scribble run` to match against it,\n"
+                "or `scribble recluster` first if the corpus already has duplicates of them.\n",
+                stored ? stored->display().c_str() : "speaker", stored ? stored->n_clips : added,
+                (stored ? stored->n_clips : added) == 1 ? "" : "s");
+    return 0;
+}
+
+int cmd_enrollments(Database &db, const std::vector<std::string> &positional) {
+    std::vector<GlobalSpeaker> speakers;
+    if (positional.empty()) {
+        for (const auto &g : db.globals()) {
+            if (g.enrolled) {
+                speakers.push_back(g);
+            }
+        }
+    } else {
+        auto one = db.global(std::stoll(positional[0]));
+        if (!one) {
+            std::fprintf(stderr, "no speaker with id %s\n", positional[0].c_str());
+            return 2;
+        }
+        speakers.push_back(*one);
+    }
+
+    if (speakers.empty()) {
+        std::printf("nobody is enrolled yet\n\n"
+                    "  scribble enroll \"Will\" clips\\will-*.wav\n");
+        return 0;
+    }
+
+    for (const auto &g : speakers) {
+        std::printf("%lld  %s\n", static_cast<long long>(g.id), g.display().c_str());
+        for (const auto &c : db.enrollments(g.id)) {
+            std::printf("    %-6lld %6.1fs  coherence %.2f  %s\n", static_cast<long long>(c.id),
+                        c.duration, c.coherence, c.source.c_str());
+        }
+    }
+    return 0;
+}
+
+int cmd_unenroll(Database &db, const std::vector<std::string> &positional) {
+    if (positional.empty()) {
+        std::fprintf(stderr, "usage: scribble unenroll <speaker id> [clip id]\n");
+        return 2;
+    }
+
+    if (positional.size() >= 2) {
+        db.delete_enrollment(std::stoll(positional[1]));
+        std::printf("clip removed\n");
+        return 0;
+    }
+
+    const std::int64_t id = std::stoll(positional[0]);
+    int removed = db.delete_enrollments_for(id);
+    std::printf("%d clip%s removed, %s is no longer enrolled\n", removed,
+                removed == 1 ? "" : "s",
+                db.global(id) ? db.global(id)->display().c_str() : "that speaker");
     return 0;
 }
 
@@ -493,6 +702,7 @@ int main(int argc, char **argv) {
         }
     }
     if (args.threshold >= 0.0f) cfg.match_threshold = args.threshold;
+    if (args.min_speech >= 0.0) cfg.min_speaker_speech = args.min_speech;
     if (args.no_diarize)        cfg.diarize = false;
     if (args.overwrite)         cfg.overwrite = true;
 
@@ -565,6 +775,15 @@ int main(int argc, char **argv) {
             std::printf("moved %d voiceprints\n", moved);
             return 0;
         }
+        if (args.command == "enroll") {
+            return cmd_enroll(db, cfg, args.positional, args.range);
+        }
+        if (args.command == "enrollments") {
+            return cmd_enrollments(db, args.positional);
+        }
+        if (args.command == "unenroll") {
+            return cmd_unenroll(db, args.positional);
+        }
         if (args.command == "dismiss") {
             if (args.positional.size() != 2) {
                 std::fprintf(stderr, "usage: scribble dismiss <id> <id>\n");
@@ -584,6 +803,13 @@ int main(int argc, char **argv) {
             auto r = pipeline.recluster();
             std::printf("%d voiceprints, %d speakers before, %d after, %d reassigned\n",
                         r.locals, r.globals_before, r.globals_after, r.merged);
+            if (r.pinned > 0) {
+                std::printf("%d left alone, held by an enrolled identity\n", r.pinned);
+            }
+            if (r.below_floor > 0) {
+                std::printf("%d left unnamed, under the %.0fs speech floor\n", r.below_floor,
+                            cfg.min_speaker_speech);
+            }
             return 0;
         }
         if (args.command == "render") {

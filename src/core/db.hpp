@@ -45,6 +45,25 @@ struct LocalSpeaker {
     float similarity = 0.0f;
 };
 
+/// One piece of reference audio for a known person, plus the voiceprint taken
+/// from it. Clips are kept individually rather than folded into the identity's
+/// centroid so matching can score against the nearest one.
+struct EnrollmentClip {
+    std::int64_t id = -1;
+    std::int64_t global_id = -1;
+    std::string source;    ///< file the clip came from, for display
+    double start = 0.0;    ///< offset into that file
+    double end = 0.0;
+    double duration = 0.0;  ///< speech actually used, after the silence gate
+    std::vector<float> centroid;
+    int n_windows = 0;
+    /// Lowest similarity between any analysis window and the clip's own mean.
+    /// A clip holding one voice sits high; a clip with two people in it, or
+    /// with a stretch of music, drops.
+    float coherence = 0.0f;
+    std::string created_at;
+};
+
 class Database {
 public:
     explicit Database(const fs::path &path);
@@ -97,6 +116,27 @@ public:
     /// Global speakers whose files overlap the given file.
     std::vector<std::int64_t> globals_in_file(std::int64_t file_id) const;
 
+    /// Recomputes how many speakers and how much speech an identity carries,
+    /// from the rows that actually point at it, without touching the centroid.
+    /// An enrolled identity accumulates files and speech time for display while
+    /// its voiceprint stays exactly what the reference clips made it.
+    void refresh_global_usage(std::int64_t id);
+
+    // -- enrolment ----------------------------------------------------------
+    /// Creates an identity from a name alone, before any audio has matched it.
+    std::int64_t create_named_global(const std::string &name);
+    std::int64_t add_enrollment(const EnrollmentClip &clip);
+    std::vector<EnrollmentClip> enrollments(std::int64_t global_id) const;
+    /// Every clip in the store, ordered by identity. Used to build the match
+    /// profiles once per batch rather than once per file.
+    std::vector<EnrollmentClip> all_enrollments() const;
+    void delete_enrollment(std::int64_t clip_id);
+    int delete_enrollments_for(std::int64_t global_id);
+    /// Recomputes the identity's centroid from its clips and sets or clears the
+    /// enrolled flag to match whether any remain.
+    void refresh_enrollment(std::int64_t global_id);
+    bool is_enrolled(std::int64_t global_id) const;
+
     // -- destructive ---------------------------------------------------------
     /// Deletes every file, segment, speaker and dismissal, leaving an empty
     /// schema. Transcripts already written to disk are untouched, but the
@@ -114,6 +154,8 @@ public:
         int segments = 0;
         int speakers = 0;
         int named_speakers = 0;
+        int enrolled_speakers = 0;
+        int enrollment_clips = 0;
     };
     Counts counts() const;
 

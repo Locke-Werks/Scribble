@@ -1,6 +1,7 @@
 #include "SpeakerModel.hpp"
 
 #include <QColor>
+#include <QStringList>
 
 #include "FormatUtil.hpp"
 #include "SpeakerPalette.hpp"
@@ -25,11 +26,24 @@ QVariant SpeakerModel::data(const QModelIndex &index, int role) const {
         case Qt::DisplayRole:
         case Qt::EditRole:
             switch (index.column()) {
-                case ColumnName:
+                case ColumnName: {
                     // Edit starts from the assigned name, empty when unnamed, so
                     // the placeholder id is not what the user has to delete.
-                    return role == Qt::EditRole ? QString::fromStdString(sp.name)
-                                                : QString::fromStdString(sp.display());
+                    if (role == Qt::EditRole) {
+                        return QString::fromStdString(sp.name);
+                    }
+                    // An enrolled identity is marked in the list because it
+                    // behaves differently from the ones the corpus invented:
+                    // it matches at a lower threshold, it can take more than
+                    // one speaker out of a file, and reclustering leaves it
+                    // alone. None of that is guessable from a name.
+                    const QString name = QString::fromStdString(sp.display());
+                    // Built from a code point rather than written into the
+                    // literal: what QStringLiteral makes of a non-ASCII source
+                    // byte depends on the compiler execution charset, and this
+                    // is not the place to find out.
+                    return sp.enrolled ? QChar(0x25C6) + QStringLiteral(" ") + name : name;
+                }
                 case ColumnFiles:
                     return sp.n_files;
                 case ColumnDuration:
@@ -45,12 +59,22 @@ QVariant SpeakerModel::data(const QModelIndex &index, int role) const {
             }
             return theme::c(scribble::theme::kFg4);
         case Qt::FontRole:
-            return index.column() == ColumnName ? theme::body(13) : theme::mono(11);
-        case Qt::ToolTipRole:
-            if (!sp.notes.empty()) {
-                return QString::fromStdString(sp.notes);
+            if (index.column() != ColumnName) {
+                return theme::mono(11);
             }
-            return {};
+            return sp.enrolled ? theme::body(13, QFont::DemiBold) : theme::body(13);
+        case Qt::ToolTipRole: {
+            QStringList lines;
+            if (sp.enrolled) {
+                lines << QStringLiteral("Enrolled from %1 reference clip%2")
+                             .arg(sp.n_clips)
+                             .arg(sp.n_clips == 1 ? "" : "s");
+            }
+            if (!sp.notes.empty()) {
+                lines << QString::fromStdString(sp.notes);
+            }
+            return lines.isEmpty() ? QVariant{} : QVariant(lines.join(QChar('\n')));
+        }
         case Qt::TextAlignmentRole:
             if (index.column() != ColumnName) {
                 return int(Qt::AlignRight | Qt::AlignVCenter);

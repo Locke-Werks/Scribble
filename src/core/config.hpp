@@ -104,6 +104,27 @@ struct Config {
     /// interjections carry too little signal and poison the centroid.
     double embed_min_segment = 3.0;
     int embed_max_segments = 8;
+    /// Least speech, in clock time across a whole file, before a voice is
+    /// allowed to become a corpus identity of its own.
+    ///
+    /// Diarization has no notion of whether a cluster is worth having. It will
+    /// hand back a speaker for a two-word interjection off-mic as readily as
+    /// for the person running the meeting, and since two speakers in one file
+    /// may not share an identity, every one of those blips is forced to mint a
+    /// new one. That is where a three-person recording turns into thirty-seven
+    /// speakers, and no threshold fixes it, because the fragments are not wrong
+    /// about being different from each other. They are just not worth a name.
+    ///
+    /// The floor gates minting only. A brief speaker can still join an identity
+    /// that already exists, which is what recovers a long speaker that
+    /// diarization split and left a two-second tail of. It simply cannot create
+    /// one. Its words stay in the transcript either way, under the file-local
+    /// label, because losing speech and declining to name a voice are different
+    /// things.
+    ///
+    /// 0 disables the floor and restores the older behaviour.
+    double min_speaker_speech = 8.0;
+
     /// Cosine similarity above which a file's speaker joins an existing identity.
     float match_threshold = 0.65f;
     /// Pairs landing between review and match get reported for a human to
@@ -111,6 +132,27 @@ struct Config {
     float review_threshold = 0.50f;
     /// Distance threshold for the offline reclustering pass.
     float cluster_threshold = 0.65f;
+
+    // -- enrolled identities -------------------------------------------------
+    /// Similarity above which a file's speaker joins an identity backed by
+    /// human-supplied reference audio. Deliberately below match_threshold: the
+    /// far side of that comparison is a clean recording of a known person
+    /// rather than a centroid averaged out of whatever the corpus contained.
+    float enroll_match_threshold = 0.55f;
+    /// Let one enrolled identity take several speakers out of the same file.
+    ///
+    /// Diarization splitting one person into four clusters is the ordinary
+    /// case, not the pathological one, and without this the other three are
+    /// forced to mint new identities because two speakers in a file may not
+    /// share one. A reference clip of a known person outranks a per-file
+    /// clustering threshold, so where one exists the extra clusters collapse
+    /// back into the person they came from. Turning this off restores the
+    /// stricter behaviour at the cost of that mint.
+    bool enroll_collapse = true;
+    /// Analysis window over a reference clip, and the least speech a clip must
+    /// carry to be worth enrolling.
+    double enroll_window = 4.0;
+    double enroll_min_clip = 3.0;
 
     /// Recluster when a batch finishes, and re-render whatever it moved.
     ///

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <map>
+#include <set>
 #include <unordered_map>
 
 #include "asr.hpp"
@@ -404,10 +405,20 @@ bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
             local.id = db.insert_local_speaker(local);
         }
 
+        // Reloaded per file rather than cached for the batch: enrolling a
+        // voice mid-run is an obvious thing to do the moment a batch produces a
+        // speaker the user recognises, and a cached profile list would ignore
+        // it until the next run. The read is one small table.
+        const auto profiles = load_enrolled_profiles(db);
+
         MatchInput input;
         input.file_id = job.file_id;
         input.locals = locals;
         input.threshold = cfg.match_threshold;
+        input.enrolled_threshold = cfg.enroll_match_threshold;
+        input.min_speaker_speech = cfg.min_speaker_speech;
+        input.collapse_enrolled = cfg.enroll_collapse;
+        input.profiles = &profiles;
         auto resolutions = resolve_against_store(db, input);
         db.commit();
 
@@ -420,6 +431,29 @@ bool Pipeline::Impl::process(const MediaJob &job, std::string *error) {
             if (it != by_label.end()) {
                 seg.global_id = it->second;
             }
+        }
+
+        int collapsed = 0;
+        int below_floor = 0;
+        for (const auto &r : resolutions) {
+            if (r.collapsed) {
+                ++collapsed;
+            }
+            if (r.below_floor) {
+                ++below_floor;
+            }
+        }
+        if (below_floor > 0) {
+            reporter.info(std::to_string(below_floor) +
+                              " brief speaker(s) left unnamed, under the " +
+                              std::to_string(static_cast<int>(cfg.min_speaker_speech)) +
+                              "s floor",
+                          job.file_id);
+        }
+        if (collapsed > 1) {
+            reporter.info("diarization split " + std::to_string(collapsed) +
+                              " ways across enrolled speakers, collapsed back",
+                          job.file_id);
         }
 
         reporter.emit(EvSpeakersResolved{job.file_id, resolutions});
@@ -587,13 +621,54 @@ Pipeline::ReclusterResult Pipeline::recluster() {
     locals.erase(std::remove_if(locals.begin(), locals.end(),
                                 [](const LocalSpeaker &s) { return s.centroid.empty(); }),
                  locals.end());
-    result.locals = static_cast<int>(locals.size());
-    if (locals.empty()) {
-        return result;
-    }
 
     auto before = impl.db.globals();
     result.globals_before = static_cast<int>(before.size());
+
+    // Speakers already resolved to an enrolled identity are held out of the
+    // pass entirely.
+    //
+    // Reclustering exists to take the arrival-order arbitrariness out of
+    // identities the corpus inferred for itself. An enrolled identity was not
+    // inferred, so there is nothing to reconcile, and running it through
+    // agglomeration would let a neighbouring cluster pull its speakers away and
+    // quietly undo the enrolment on every batch.
+    // Speakers under the floor are held out for the same reason they were
+    // never minted: clustering assigns an identity to every row it is given,
+    // so including them here would hand back exactly the identities the floor
+    // declined to create. One already attached to somebody keeps that.
+    if (impl.cfg.min_speaker_speech > 0.0) {
+        const auto before_floor = locals.size();
+        locals.erase(std::remove_if(locals.begin(), locals.end(),
+                                    [&](const LocalSpeaker &s) {
+                                        return s.global_id < 0 &&
+                                               s.total_duration < impl.cfg.min_speaker_speech;
+                                    }),
+                     locals.end());
+        result.below_floor = static_cast<int>(before_floor - locals.size());
+    }
+
+    std::set<std::int64_t> enrolled;
+    for (const auto &g : before) {
+        if (g.enrolled) {
+            enrolled.insert(g.id);
+        }
+    }
+    if (!enrolled.empty()) {
+        const auto before_count = locals.size();
+        locals.erase(std::remove_if(locals.begin(), locals.end(),
+                                    [&](const LocalSpeaker &s) {
+                                        return enrolled.count(s.global_id) > 0;
+                                    }),
+                     locals.end());
+        result.pinned = static_cast<int>(before_count - locals.size());
+    }
+
+    result.locals = static_cast<int>(locals.size());
+    if (locals.empty()) {
+        result.globals_after = result.globals_before;
+        return result;
+    }
 
     std::vector<std::vector<float>> vectors;
     std::vector<std::int64_t> file_ids;
@@ -607,7 +682,6 @@ Pipeline::ReclusterResult Pipeline::recluster() {
     ClusterOptions opts;
     opts.threshold = impl.cfg.cluster_threshold;
     auto assignment = constrained_agglomerative(vectors, file_ids, opts);
-    result.globals_after = assignment.n_clusters;
 
     std::map<int, std::vector<size_t>> clusters;
     for (size_t i = 0; i < locals.size(); ++i) {
@@ -627,7 +701,7 @@ Pipeline::ReclusterResult Pipeline::recluster() {
 
         for (size_t idx : members) {
             std::int64_t gid = locals[idx].global_id;
-            if (gid < 0) {
+            if (gid < 0 || enrolled.count(gid)) {
                 continue;
             }
             votes[gid]++;
@@ -695,8 +769,19 @@ Pipeline::ReclusterResult Pipeline::recluster() {
     impl.db.delete_empty_globals();
     impl.db.commit();
 
-    impl.reporter.info("reclustered " + std::to_string(result.locals) + " voiceprints into " +
-                       std::to_string(result.globals_after) + " speakers");
+    // Counted from the store rather than from the cluster count, which no
+    // longer describes the whole picture once enrolled identities are held out.
+    result.globals_after = static_cast<int>(impl.db.globals().size());
+
+    std::string note = "reclustered " + std::to_string(result.locals) + " voiceprints into " +
+                       std::to_string(result.globals_after) + " speakers";
+    if (result.pinned > 0) {
+        note += ", " + std::to_string(result.pinned) + " held by enrolment";
+    }
+    if (result.below_floor > 0) {
+        note += ", " + std::to_string(result.below_floor) + " too brief to name";
+    }
+    impl.reporter.info(note);
     return result;
 }
 
