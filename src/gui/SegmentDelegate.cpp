@@ -1,32 +1,34 @@
 #include "SegmentDelegate.hpp"
 
 #include <QApplication>
-#include <QFontDatabase>
 #include <QFontMetrics>
 #include <QPainter>
-#include <QPainterPath>
 
 #include "FormatUtil.hpp"
+#include "ThemeQt.hpp"
 #include "TranscriptModel.hpp"
 
 namespace scribble::gui {
 
 namespace {
 constexpr int kGutter = 96;   // timestamp column
-constexpr int kHPad = 8;
-constexpr int kVPad = 6;
-constexpr int kChipGap = 4;
+constexpr int kHPad = 10;
+constexpr int kVPad = 7;
+constexpr int kChipGap = 5;
+constexpr int kChipHPad = 7;
 
-QFont monoFont(const QFont &base) {
-    QFont f = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-    f.setPointSizeF(base.pointSizeF() > 0 ? base.pointSizeF() - 1.0 : f.pointSizeF());
-    return f;
+// paint() and sizeHint() have to agree to the pixel, so both take their fonts
+// from here rather than from the view's font.
+QFont stampFont() {
+    return theme::mono(11);
 }
 
-QColor readableOn(const QColor &bg) {
-    // Pastel chips are light, so dark text keeps the label legible on them.
-    const double luma = 0.299 * bg.red() + 0.587 * bg.green() + 0.114 * bg.blue();
-    return luma > 140 ? QColor(0x1c, 0x1f, 0x2b) : QColor(0xf5, 0xf5, 0xf5);
+QFont chipFont() {
+    return theme::mono(11);
+}
+
+QFont utteranceFont() {
+    return theme::body(13);
 }
 }  // namespace
 
@@ -38,6 +40,8 @@ QRect SegmentDelegate::textRect(const QStyleOptionViewItem &option) const {
 
 void SegmentDelegate::paint(QPainter *painter, const QStyleOptionViewItem &option,
                             const QModelIndex &index) const {
+    using namespace scribble::theme;
+
     QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
     opt.text.clear();
@@ -51,18 +55,21 @@ void SegmentDelegate::paint(QPainter *painter, const QStyleOptionViewItem &optio
     const QString text = index.data(TranscriptModel::TextRole).toString();
 
     painter->save();
+    painter->setRenderHint(QPainter::Antialiasing, true);
 
-    const QColor normalText = selected ? option.palette.color(QPalette::HighlightedText)
-                                       : option.palette.color(QPalette::Text);
-    const QColor dimText = selected ? option.palette.color(QPalette::HighlightedText)
-                                    : option.palette.color(QPalette::Disabled, QPalette::Text);
+    // The selected line's 2px red edge. This is how "red is the only accent"
+    // survives a list: the row fill stays a neutral elevated surface and the
+    // accent is a single hairline.
+    if (selected) {
+        painter->fillRect(QRect(option.rect.left(), option.rect.top(), 2, option.rect.height()),
+                          theme::c(kRed));
+    }
 
-    // Timestamp gutter.
-    QFont mono = monoFont(option.font);
-    painter->setFont(mono);
-    painter->setPen(dimText);
-    const QRect tsRect(option.rect.left() + kHPad, option.rect.top() + kVPad,
-                       kGutter - kHPad, QFontMetrics(mono).height());
+    const QFont stamp = stampFont();
+    painter->setFont(stamp);
+    painter->setPen(theme::c(kFg4));
+    const QRect tsRect(option.rect.left() + kHPad, option.rect.top() + kVPad, kGutter - kHPad,
+                       QFontMetrics(stamp).height());
     painter->drawText(tsRect, Qt::AlignLeft | Qt::AlignTop, formatTimestamp(start));
 
     int y = option.rect.top() + kVPad;
@@ -70,27 +77,29 @@ void SegmentDelegate::paint(QPainter *painter, const QStyleOptionViewItem &optio
     const int contentW = option.rect.right() - kHPad - contentX;
 
     if (!speaker.isEmpty()) {
-        QFont chipFont = option.font;
-        chipFont.setBold(true);
-        chipFont.setPointSizeF(chipFont.pointSizeF() > 0 ? chipFont.pointSizeF() - 1.0
-                                                         : chipFont.pointSizeF());
-        painter->setFont(chipFont);
-        const QFontMetrics cfm(chipFont);
-        const int chipH = cfm.height() + 2;
-        const int chipW = qMin(cfm.horizontalAdvance(speaker) + 12, contentW);
-        const QRect chip(contentX, y, chipW, chipH);
-        QPainterPath path;
-        path.addRoundedRect(chip, 4, 4);
-        painter->fillPath(path, color);
-        painter->setPen(readableOn(color));
-        painter->drawText(chip, Qt::AlignCenter,
-                          cfm.elidedText(speaker, Qt::ElideRight, chipW - 8));
+        // A chip is a hairline box on the page colour with the speaker's hue as
+        // the text, not a filled pastel block. Filled chips are the one thing
+        // that reliably breaks black on black: at this density the page turns
+        // into a column of coloured bars.
+        const QFont chip = chipFont();
+        painter->setFont(chip);
+        const QFontMetrics cfm(chip);
+        const int chipH = cfm.height() + 4;
+        const int chipW = qMin(cfm.horizontalAdvance(speaker) + 2 * kChipHPad, contentW);
+        const QRect chipRect(contentX, y, chipW, chipH);
+
+        painter->setPen(QPen(theme::c(kBorder), 1));
+        painter->setBrush(theme::c(kBlack));
+        painter->drawRoundedRect(QRectF(chipRect).adjusted(0.5, 0.5, -0.5, -0.5), 2, 2);
+
+        painter->setPen(color);
+        painter->drawText(chipRect, Qt::AlignCenter,
+                          cfm.elidedText(speaker, Qt::ElideRight, chipW - 2 * kChipHPad + 2));
         y += chipH + kChipGap;
     }
 
-    QFont textFont = option.font;
-    painter->setFont(textFont);
-    painter->setPen(normalText);
+    painter->setFont(utteranceFont());
+    painter->setPen(theme::c(selected ? kFg1 : kFg2));
     const QRect textR(contentX, y, contentW, option.rect.bottom() - kVPad - y);
     painter->drawText(textR, Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, text);
 
@@ -110,11 +119,9 @@ QSize SegmentDelegate::sizeHint(const QStyleOptionViewItem &option,
 
     int height = 2 * kVPad;
     if (!speaker.isEmpty()) {
-        QFont chipFont = option.font;
-        chipFont.setBold(true);
-        height += QFontMetrics(chipFont).height() + 2 + kChipGap;
+        height += QFontMetrics(chipFont()).height() + 4 + kChipGap;
     }
-    const QFontMetrics fm(option.font);
+    const QFontMetrics fm(utteranceFont());
     const QRect br = fm.boundingRect(QRect(0, 0, contentW, 100000),
                                      Qt::TextWordWrap | Qt::AlignLeft | Qt::AlignTop, text);
     height += qMax(br.height(), fm.height());

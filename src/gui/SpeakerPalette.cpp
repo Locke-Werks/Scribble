@@ -7,8 +7,11 @@ namespace scribble::gui {
 
 namespace {
 
-// A pastel set that reads on both light and dark palettes. Size is coprime with
-// nothing in particular; consecutive speaker ids simply land on different hues.
+// Speaker identity is data, not state, so it is the one thing in the window
+// besides red that carries hue: sixteen tints that stay apart from each other
+// and read as text on the page colour. They only ever appear inside a chip or
+// as a name, which is the same licence the design language gives the status
+// colours. Nothing here is allowed to become a section accent.
 const std::array<QColor, 16> kPalette = {
     QColor(0x8c, 0xaa, 0xee), QColor(0xe7, 0x82, 0x84), QColor(0xa6, 0xd1, 0x89),
     QColor(0xe5, 0xc8, 0x90), QColor(0xca, 0x9e, 0xe6), QColor(0x81, 0xc8, 0xbe),

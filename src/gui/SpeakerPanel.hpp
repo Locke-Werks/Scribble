@@ -4,6 +4,7 @@
 
 #include "types.hpp"
 
+class QLabel;
 class QTableView;
 
 namespace scribble {
@@ -38,6 +39,7 @@ private slots:
 
 private:
     std::int64_t selectedGlobal() const;
+    void updateCount();
     void mergeInto(std::int64_t globalId);
     void splitThisFile(std::int64_t globalId);
     void addNote(std::int64_t globalId);
@@ -46,6 +48,7 @@ private:
     std::int64_t currentFile_ = -1;
     SpeakerModel *model_ = nullptr;
     QTableView *view_ = nullptr;
+    QLabel *count_ = nullptr;
 };
 
 }  // namespace scribble::gui

@@ -7,6 +7,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
 #include "db.hpp"
 #include "speakers.hpp"
 
@@ -18,19 +20,29 @@ DuplicatesDialog::DuplicatesDialog(scribble::Database *db, float low, float high
     resize(560, 420);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(18, 14, 18, 16);
+    layout->setSpacing(12);
+    layout->addWidget(eyebrow(QStringLiteral("// Duplicates"), 15, this));
 
     summary_ = new QLabel(this);
     summary_->setWordWrap(true);
+    summary_->setFont(theme::body(13));
     layout->addWidget(summary_);
 
     table_ = new QTableWidget(this);
     table_->setColumnCount(4);
     table_->setHorizontalHeaderLabels(
-        {QStringLiteral("Speaker A"), QStringLiteral("Speaker B"),
-         QStringLiteral("Similarity"), QStringLiteral("Files")});
+        {QStringLiteral("SPEAKER A"), QStringLiteral("SPEAKER B"),
+         QStringLiteral("SIMILARITY"), QStringLiteral("FILES")});
     table_->setSelectionBehavior(QAbstractItemView::SelectRows);
     table_->setSelectionMode(QAbstractItemView::SingleSelection);
     table_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    table_->setShowGrid(false);
+    table_->setMouseTracking(true);
+    table_->setAlternatingRowColors(false);
+    table_->verticalHeader()->setVisible(false);
+    table_->verticalHeader()->setDefaultSectionSize(26);
+    table_->horizontalHeader()->setFont(theme::tracked(10, QFont::DemiBold, 0.16));
     table_->horizontalHeader()->setStretchLastSection(true);
     table_->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
     table_->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
@@ -40,6 +52,10 @@ DuplicatesDialog::DuplicatesDialog(scribble::Database *db, float low, float high
     auto *mergeBtn = buttons->addButton(QStringLiteral("Merge"), QDialogButtonBox::ActionRole);
     auto *dismissBtn = buttons->addButton(QStringLiteral("Dismiss"), QDialogButtonBox::ActionRole);
     buttons->addButton(QDialogButtonBox::Close);
+    styleButtonBox(buttons);
+    // Merge is the affirmative action here, and it carries an ActionRole rather
+    // than an AcceptRole, so the button box cannot pick it out on its own.
+    styleButton(mergeBtn, true);
     layout->addWidget(buttons);
 
     connect(mergeBtn, &QPushButton::clicked, this, &DuplicatesDialog::mergeSelected);

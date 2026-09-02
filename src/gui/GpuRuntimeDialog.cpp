@@ -13,6 +13,9 @@
 
 #include <string>
 
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
+
 namespace scribble::gui {
 
 namespace {
@@ -61,42 +64,57 @@ GpuRuntimeDialog::GpuRuntimeDialog(QWidget *parent) : QDialog(parent) {
     resize(560, 420);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(18, 14, 18, 16);
+    layout->setSpacing(10);
+    layout->addWidget(eyebrow(QStringLiteral("// GPU Acceleration"), 15, this));
 
     summaryLabel_ = new QLabel(this);
     summaryLabel_->setWordWrap(true);
+    summaryLabel_->setFont(theme::body(13));
     layout->addWidget(summaryLabel_);
 
     componentList_ = new QTreeWidget(this);
     componentList_->setColumnCount(2);
-    componentList_->setHeaderLabels({QStringLiteral("Component"), QStringLiteral("Download")});
+    componentList_->setHeaderLabels({QStringLiteral("COMPONENT"), QStringLiteral("DOWNLOAD")});
     componentList_->setRootIsDecorated(false);
     componentList_->setUniformRowHeights(true);
     componentList_->setSelectionMode(QAbstractItemView::NoSelection);
     componentList_->setFocusPolicy(Qt::NoFocus);
+    componentList_->setFont(theme::mono(11));
+    componentList_->header()->setFont(theme::tracked(10, QFont::DemiBold, 0.16));
     componentList_->header()->setSectionResizeMode(0, QHeaderView::Stretch);
     componentList_->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
     layout->addWidget(componentList_, 1);
 
     totalLabel_ = new QLabel(this);
+    totalLabel_->setFont(theme::mono(11));
     layout->addWidget(totalLabel_);
 
     locationLabel_ = new QLabel(this);
     locationLabel_->setWordWrap(true);
+    locationLabel_->setFont(theme::mono(11));
+    locationLabel_->setStyleSheet(
+        QStringLiteral("color: %1;").arg(theme::c(scribble::theme::kFg4).name()));
     locationLabel_->setTextInteractionFlags(Qt::TextSelectableByMouse);
     layout->addWidget(locationLabel_);
 
     progressLabel_ = new QLabel(this);
     progressLabel_->setWordWrap(true);
+    progressLabel_->setFont(theme::mono(11));
     progressLabel_->setVisible(false);
     layout->addWidget(progressLabel_);
 
     progressBar_ = new QProgressBar(this);
     progressBar_->setVisible(false);
+    progressBar_->setFixedHeight(16);
+    progressBar_->setFont(theme::mono(10));
     layout->addWidget(progressBar_);
 
     auto *buttons = new QHBoxLayout;
     installButton_ = new QPushButton(QStringLiteral("Install"), this);
     closeButton_ = new QPushButton(QStringLiteral("Close"), this);
+    styleButton(installButton_, true);
+    styleButton(closeButton_);
     buttons->addWidget(installButton_);
     buttons->addStretch(1);
     buttons->addWidget(closeButton_);
@@ -231,7 +249,7 @@ void GpuRuntimeDialog::setInstalling(bool installing) {
     installing_ = installing;
     installButton_->setEnabled(!installing && !status_.ready);
     closeButton_->setEnabled(true);
-    closeButton_->setText(installing ? QStringLiteral("Cancel") : QStringLiteral("Close"));
+    closeButton_->setText(installing ? QStringLiteral("CANCEL") : QStringLiteral("CLOSE"));
     progressLabel_->setVisible(installing);
     progressBar_->setVisible(installing);
     if (installing) {

@@ -9,7 +9,8 @@ namespace scribble::gui {
 
 /// Rows of corpus-wide speakers for the right-hand panel. The name column is
 /// editable so a double-click renames in place; files and duration are read
-/// only. Colour swatches come from the same palette the transcript uses.
+/// only. The name is drawn in the speaker's colour, from the same palette the
+/// transcript chips use.
 class SpeakerModel : public QAbstractTableModel {
     Q_OBJECT
 public:

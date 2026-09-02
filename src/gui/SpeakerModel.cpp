@@ -4,6 +4,7 @@
 
 #include "FormatUtil.hpp"
 #include "SpeakerPalette.hpp"
+#include "ThemeQt.hpp"
 
 namespace scribble::gui {
 
@@ -36,11 +37,15 @@ QVariant SpeakerModel::data(const QModelIndex &index, int role) const {
                 default:
                     return {};
             }
-        case Qt::DecorationRole:
+        case Qt::ForegroundRole:
+            // The speaker's hue is ink, never fill: a decoration swatch here
+            // would be a solid block of colour in a window that has none.
             if (index.column() == ColumnName) {
                 return SpeakerPalette::colorForGlobal(sp.id);
             }
-            return {};
+            return theme::c(scribble::theme::kFg4);
+        case Qt::FontRole:
+            return index.column() == ColumnName ? theme::body(13) : theme::mono(11);
         case Qt::ToolTipRole:
             if (!sp.notes.empty()) {
                 return QString::fromStdString(sp.notes);
@@ -64,11 +69,11 @@ QVariant SpeakerModel::headerData(int section, Qt::Orientation orientation, int 
     }
     switch (section) {
         case ColumnName:
-            return QStringLiteral("Speaker");
+            return QStringLiteral("SPEAKER");
         case ColumnFiles:
-            return QStringLiteral("Files");
+            return QStringLiteral("FILES");
         case ColumnDuration:
-            return QStringLiteral("Speech");
+            return QStringLiteral("SPEECH");
         default:
             return {};
     }

@@ -1,6 +1,8 @@
 #include "QueueModel.hpp"
 
 #include <QColor>
+
+#include "ThemeQt.hpp"
 #include <QFileInfo>
 
 #include <algorithm>
@@ -107,9 +109,13 @@ QVariant QueueModel::data(const QModelIndex &index, int role) const {
             return int(Qt::AlignLeft | Qt::AlignVCenter);
         case Qt::ForegroundRole:
             if (row.failed) {
-                return QColor(0xe7, 0x82, 0x84);
+                return theme::c(scribble::theme::kRedDark);
             }
-            return {};
+            // The name carries the row; everything else is a caption beside it.
+            return theme::c(index.column() == ColumnName ? scribble::theme::kFg2
+                                                         : scribble::theme::kFg4);
+        case Qt::FontRole:
+            return index.column() == ColumnName ? theme::body(13) : theme::mono(11);
         case FileIdRole:
             return QVariant::fromValue<qlonglong>(row.fileId);
         case ProgressRole:
@@ -127,15 +133,15 @@ QVariant QueueModel::headerData(int section, Qt::Orientation orientation, int ro
     }
     switch (section) {
         case ColumnName:
-            return QStringLiteral("File");
+            return QStringLiteral("FILE");
         case ColumnDuration:
-            return QStringLiteral("Length");
+            return QStringLiteral("LENGTH");
         case ColumnStage:
-            return QStringLiteral("Stage");
+            return QStringLiteral("STAGE");
         case ColumnProgress:
-            return QStringLiteral("Progress");
+            return QStringLiteral("PROGRESS");
         case ColumnSpeakers:
-            return QStringLiteral("Speakers");
+            return QStringLiteral("SPEAKERS");
         default:
             return {};
     }

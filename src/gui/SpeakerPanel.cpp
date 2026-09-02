@@ -1,5 +1,6 @@
 #include "SpeakerPanel.hpp"
 
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QInputDialog>
 #include <QLabel>
@@ -11,6 +12,8 @@
 #include <vector>
 
 #include "SpeakerModel.hpp"
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
 #include "db.hpp"
 
 namespace scribble::gui {
@@ -20,12 +23,13 @@ SpeakerPanel::SpeakerPanel(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(4);
 
-    auto *heading = new QLabel(QStringLiteral("Speakers"), this);
-    heading->setContentsMargins(8, 6, 8, 0);
-    QFont hf = heading->font();
-    hf.setBold(true);
-    heading->setFont(hf);
-    layout->addWidget(heading);
+    auto *head = new QHBoxLayout;
+    head->setContentsMargins(14, 12, 14, 8);
+    head->addWidget(eyebrow(QStringLiteral("// Speakers"), 15, this));
+    head->addStretch(1);
+    count_ = monoCaption(QString(), scribble::theme::kFg4, 11, this);
+    head->addWidget(count_);
+    layout->addLayout(head);
 
     model_ = new SpeakerModel(this);
     view_ = new QTableView(this);
@@ -41,10 +45,19 @@ SpeakerPanel::SpeakerPanel(QWidget *parent) : QWidget(parent) {
     view_->horizontalHeader()->setSectionResizeMode(SpeakerModel::ColumnDuration,
                                                     QHeaderView::ResizeToContents);
     view_->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    view_->setShowGrid(false);
+    view_->setMouseTracking(true);
+    view_->setAlternatingRowColors(false);
+    view_->verticalHeader()->setDefaultSectionSize(26);
+    view_->horizontalHeader()->setFont(theme::tracked(10, QFont::DemiBold, 0.16));
     layout->addWidget(view_, 1);
 
-    auto *reviewBtn = new QPushButton(QStringLiteral("Review duplicates"), this);
-    layout->addWidget(reviewBtn);
+    auto *reviewBtn = new QPushButton(QStringLiteral("REVIEW DUPLICATES"), this);
+    reviewBtn->setFont(theme::tracked(11, QFont::Bold, 0.14));
+    auto *buttonWrap = new QHBoxLayout;
+    buttonWrap->setContentsMargins(14, 8, 14, 12);
+    buttonWrap->addWidget(reviewBtn);
+    layout->addLayout(buttonWrap);
 
     connect(model_, &SpeakerModel::renameRequested, this, &SpeakerPanel::onRenameRequested);
     connect(view_, &QTableView::customContextMenuRequested, this, &SpeakerPanel::showContextMenu);
@@ -59,9 +72,16 @@ void SpeakerPanel::setDatabase(scribble::Database *db) {
 void SpeakerPanel::refresh() {
     if (!db_) {
         model_->setSpeakers({});
+        updateCount();
         return;
     }
     model_->setSpeakers(db_->globals());
+    updateCount();
+}
+
+void SpeakerPanel::updateCount() {
+    const int n = model_->rowCount();
+    count_->setText(n == 1 ? QStringLiteral("1 speaker") : QStringLiteral("%1 speakers").arg(n));
 }
 
 std::int64_t SpeakerPanel::selectedGlobal() const {

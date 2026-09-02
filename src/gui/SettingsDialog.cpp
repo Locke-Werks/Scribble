@@ -13,8 +13,12 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSpinBox>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QVBoxLayout>
+
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
 
 #include <algorithm>
 #include <string>
@@ -64,7 +68,12 @@ SettingsDialog::SettingsDialog(const scribble::Config &config, QWidget *parent)
     resize(620, 560);
 
     auto *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(18, 14, 18, 16);
+    layout->setSpacing(12);
+    layout->addWidget(eyebrow(QStringLiteral("// Settings"), 15, this));
+
     auto *tabs = new QTabWidget(this);
+    tabs->tabBar()->setFont(theme::tracked(11, QFont::DemiBold, 0.14));
     tabs->addTab(buildTranscriptionTab(), QStringLiteral("Transcription"));
     tabs->addTab(buildDiarizationTab(), QStringLiteral("Diarization"));
     tabs->addTab(buildIdentityTab(), QStringLiteral("Speaker identity"));
@@ -74,6 +83,7 @@ SettingsDialog::SettingsDialog(const scribble::Config &config, QWidget *parent)
     layout->addWidget(tabs, 1);
 
     auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
+    styleButtonBox(buttons);
     connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);
@@ -85,6 +95,7 @@ QWidget *SettingsDialog::browseRow(QLineEdit *edit, bool directory) {
     hbox->setContentsMargins(0, 0, 0, 0);
     hbox->addWidget(edit, 1);
     auto *browse = new QPushButton(QStringLiteral("Browse..."), row);
+    styleButton(browse);
     hbox->addWidget(browse);
     connect(browse, &QPushButton::clicked, this, [this, edit, directory] {
         QString chosen;
@@ -216,7 +227,7 @@ QWidget *SettingsDialog::buildTranscriptionTab() {
     form->addRow(QStringLiteral("Hotwords"), hotwords_);
     form->addRow(QStringLiteral("Initial prompt"), initialPrompt_);
 
-    auto *isolationBox = new QGroupBox(QStringLiteral("Source separation"), tab);
+    auto *isolationBox = new QGroupBox(QStringLiteral("SOURCE SEPARATION"), tab);
     auto *isoForm = new QFormLayout(isolationBox);
     isolate_ = new QComboBox(isolationBox);
     isolate_->addItems({QStringLiteral("Never"), QStringLiteral("Auto"), QStringLiteral("Always")});
@@ -314,7 +325,7 @@ QWidget *SettingsDialog::buildDiarizationTab() {
     form->addRow(QStringLiteral("Max speakers"), maxSpeakers_);
     form->addRow(QStringLiteral("Cluster threshold"), diarClusterThreshold_);
 
-    auto *trackBox = new QGroupBox(QStringLiteral("Multi-track"), tab);
+    auto *trackBox = new QGroupBox(QStringLiteral("MULTI-TRACK"), tab);
     auto *trackForm = new QFormLayout(trackBox);
     splitChannels_ = new QCheckBox(QStringLiteral("Split channels into separate tracks"), trackBox);
     splitChannels_->setChecked(base_.split_channels);

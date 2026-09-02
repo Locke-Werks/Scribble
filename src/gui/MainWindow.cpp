@@ -19,6 +19,7 @@
 #include <QMimeData>
 #include <QProgressBar>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QSet>
 #include <QSettings>
 #include <QSplitter>
@@ -39,6 +40,8 @@
 #include "QueueModel.hpp"
 #include "SettingsDialog.hpp"
 #include "SpeakerPanel.hpp"
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
 #include "TranscriptView.hpp"
 #include "config.hpp"
 #include "db.hpp"
@@ -140,7 +143,14 @@ void MainWindow::buildUi() {
     queueView_->setSelectionBehavior(QAbstractItemView::SelectRows);
     queueView_->setSelectionMode(QAbstractItemView::SingleSelection);
     queueView_->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    queueView_->setShowGrid(false);
+    queueView_->setMouseTracking(true);
+    // Banded rows would break "black on black": the alternate colour is a
+    // second surface the design language does not have.
+    queueView_->setAlternatingRowColors(false);
     queueView_->verticalHeader()->setVisible(false);
+    queueView_->verticalHeader()->setDefaultSectionSize(26);
+    queueView_->horizontalHeader()->setFont(theme::tracked(10, QFont::DemiBold, 0.16));
     queueView_->horizontalHeader()->setStretchLastSection(false);
     queueView_->horizontalHeader()->setSectionResizeMode(QueueModel::ColumnName,
                                                          QHeaderView::Stretch);
@@ -156,7 +166,33 @@ void MainWindow::buildUi() {
     queueView_->setItemDelegateForColumn(QueueModel::ColumnProgress, progressDelegate_);
     connect(queueView_->selectionModel(), &QItemSelectionModel::selectionChanged, this,
             &MainWindow::onQueueSelectionChanged);
-    splitter_->addWidget(queueView_);
+
+    // Every pane carries the same head: a red eyebrow on the left, a mono
+    // count on the right. The queue view is the only one that did not own its
+    // own heading, so it gets a wrapper.
+    auto *queuePane = new QWidget(splitter_);
+    auto *queueLayout = new QVBoxLayout(queuePane);
+    queueLayout->setContentsMargins(0, 0, 0, 0);
+    queueLayout->setSpacing(0);
+    auto *queueHead = new QHBoxLayout;
+    queueHead->setContentsMargins(14, 12, 14, 8);
+    queueHead->addWidget(eyebrow(QStringLiteral("// Queue"), 15, queuePane));
+    queueHead->addStretch(1);
+    queueCount_ = monoCaption(QString(), scribble::theme::kFg4, 11, queuePane);
+    queueHead->addWidget(queueCount_);
+    queueLayout->addLayout(queueHead);
+    queueLayout->addWidget(queueView_, 1);
+    splitter_->addWidget(queuePane);
+
+    const auto updateQueueCount = [this] {
+        const int n = queueModel_->rowCount();
+        queueCount_->setText(n == 1 ? QStringLiteral("1 file")
+                                    : QStringLiteral("%1 files").arg(n));
+    };
+    connect(queueModel_, &QAbstractItemModel::rowsInserted, this, updateQueueCount);
+    connect(queueModel_, &QAbstractItemModel::rowsRemoved, this, updateQueueCount);
+    connect(queueModel_, &QAbstractItemModel::modelReset, this, updateQueueCount);
+    updateQueueCount();
 
     transcript_ = new TranscriptView(splitter_);
     splitter_->addWidget(transcript_);
@@ -182,16 +218,22 @@ void MainWindow::buildUi() {
     centralLayout->setSpacing(0);
 
     gpuInfoBar_ = new QFrame(central);
-    gpuInfoBar_->setFrameShape(QFrame::StyledPanel);
-    gpuInfoBar_->setAutoFillBackground(true);
+    gpuInfoBar_->setObjectName(QStringLiteral("Surface"));
     gpuInfoBar_->setVisible(false);
     auto *barLayout = new QHBoxLayout(gpuInfoBar_);
-    barLayout->setContentsMargins(8, 4, 8, 4);
+    barLayout->setContentsMargins(14, 9, 14, 9);
+    barLayout->setSpacing(10);
     gpuInfoLabel_ = new QLabel(gpuInfoBar_);
     gpuInfoLabel_->setWordWrap(true);
+    gpuInfoLabel_->setFont(theme::body(13));
     barLayout->addWidget(gpuInfoLabel_, 1);
     auto *installBtn = new QPushButton(QStringLiteral("Install GPU acceleration"), gpuInfoBar_);
+    installBtn->setObjectName(QStringLiteral("Primary"));
     auto *dismissBtn = new QPushButton(QStringLiteral("Not now"), gpuInfoBar_);
+    for (QPushButton *b : {installBtn, dismissBtn}) {
+        b->setFont(theme::tracked(11, QFont::Bold, 0.14));
+        b->setText(b->text().toUpper());
+    }
     barLayout->addWidget(installBtn);
     barLayout->addWidget(dismissBtn);
     connect(installBtn, &QPushButton::clicked, this, [this] {
@@ -205,22 +247,32 @@ void MainWindow::buildUi() {
         settings.setValue(QStringLiteral("gpu/declined"), true);
     });
 
+    centralLayout->addWidget(new TopRule(central));
     centralLayout->addWidget(gpuInfoBar_);
     centralLayout->addWidget(splitter_, 1);
     setCentralWidget(central);
+
+    grain_ = new GrainOverlay(central);
+    grain_->cover(central);
 
     logDock_ = new LogDock(this);
     addDockWidget(Qt::BottomDockWidgetArea, logDock_);
 
     statusLabel_ = new QLabel(QStringLiteral("Idle"), this);
+    statusLabel_->setFont(theme::mono(11));
     overallProgress_ = new QProgressBar(this);
     overallProgress_->setRange(0, 100);
     overallProgress_->setValue(0);
     overallProgress_->setFixedWidth(180);
     overallProgress_->setTextVisible(true);
+    overallProgress_->setFixedHeight(16);
+    overallProgress_->setFont(theme::mono(10));
     modelLabel_ = new QLabel(this);
+    modelLabel_->setFont(theme::mono(11));
     modelProgress_ = new QProgressBar(this);
     modelProgress_->setFixedWidth(140);
+    modelProgress_->setFixedHeight(16);
+    modelProgress_->setTextVisible(false);
     modelLabel_->setVisible(false);
     modelProgress_->setVisible(false);
     statusBar()->addWidget(statusLabel_, 1);
@@ -230,26 +282,28 @@ void MainWindow::buildUi() {
 }
 
 void MainWindow::buildActions() {
-    QStyle *style = this->style();
-
-    addFilesAct_ = new QAction(style->standardIcon(QStyle::SP_FileIcon),
-                               QStringLiteral("Add Files"), this);
-    addFolderAct_ = new QAction(style->standardIcon(QStyle::SP_DirIcon),
-                                QStringLiteral("Add Folder"), this);
-    startAct_ = new QAction(style->standardIcon(QStyle::SP_MediaPlay), QStringLiteral("Start"),
-                            this);
-    pauseAct_ = new QAction(style->standardIcon(QStyle::SP_MediaPause), QStringLiteral("Pause"),
-                            this);
+    // No icons. The design language is typographic: the platform standard icon
+    // set is a second palette, and its glyphs sit on the toolbar as the only
+    // colour in the window that is neither red nor a foreground role.
+    addFilesAct_ = new QAction(QStringLiteral("Add Files"), this);
+    addFolderAct_ = new QAction(QStringLiteral("Add Folder"), this);
+    startAct_ = new QAction(QStringLiteral("Start"), this);
+    pauseAct_ = new QAction(QStringLiteral("Pause"), this);
     pauseAct_->setCheckable(true);
-    stopAct_ = new QAction(style->standardIcon(QStyle::SP_MediaStop), QStringLiteral("Stop"), this);
-    reclusterAct_ = new QAction(style->standardIcon(QStyle::SP_BrowserReload),
-                                QStringLiteral("Recluster"), this);
-    rerenderAct_ = new QAction(style->standardIcon(QStyle::SP_DialogSaveButton),
-                               QStringLiteral("Re-render"), this);
-    settingsAct_ = new QAction(style->standardIcon(QStyle::SP_FileDialogDetailedView),
-                               QStringLiteral("Settings"), this);
-    openOutputAct_ = new QAction(style->standardIcon(QStyle::SP_DirOpenIcon),
-                                 QStringLiteral("Open Output Folder"), this);
+    stopAct_ = new QAction(QStringLiteral("Stop"), this);
+    reclusterAct_ = new QAction(QStringLiteral("Recluster"), this);
+    rerenderAct_ = new QAction(QStringLiteral("Re-render"), this);
+    settingsAct_ = new QAction(QStringLiteral("Settings"), this);
+    openOutputAct_ = new QAction(QStringLiteral("Open Output Folder"), this);
+
+    // Tracked all-caps on the toolbar, title case in the menus. iconText is the
+    // label a tool button shows; text() is what the menu entry keeps, so the
+    // two presentations come from one action without a second string to
+    // translate or keep in step.
+    for (QAction *a : {addFilesAct_, addFolderAct_, startAct_, pauseAct_, stopAct_,
+                       reclusterAct_, rerenderAct_, settingsAct_, openOutputAct_}) {
+        a->setIconText(a->text().toUpper());
+    }
 
     connect(addFilesAct_, &QAction::triggered, this, &MainWindow::addFiles);
     connect(addFolderAct_, &QAction::triggered, this, &MainWindow::addFolder);
@@ -263,7 +317,9 @@ void MainWindow::buildActions() {
 
     auto *toolbar = addToolBar(QStringLiteral("Main"));
     toolbar->setObjectName(QStringLiteral("MainToolBar"));
-    toolbar->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+    toolbar->setToolButtonStyle(Qt::ToolButtonTextOnly);
+    toolbar->setMovable(false);
+    toolbar->setFont(theme::tracked(11, QFont::Bold, 0.14));
     toolbar->addAction(addFilesAct_);
     toolbar->addAction(addFolderAct_);
     toolbar->addSeparator();
@@ -311,6 +367,16 @@ void MainWindow::buildActions() {
 
     auto *helpMenu = menuBar()->addMenu(QStringLiteral("Help"));
     auto *aboutAct = helpMenu->addAction(QStringLiteral("About"));
+
+    // The bar itself is tracked; the popups are not. A font set on the menu bar
+    // is inherited by the menus hanging off it, and a display face at this size
+    // makes a long entry hard to read, so each popup is put back on the body
+    // face by hand.
+    menuBar()->setFont(theme::tracked(11, QFont::DemiBold, 0.12));
+    for (QMenu *m : {fileMenu, runMenu, toolsMenu, viewMenu, helpMenu}) {
+        m->setFont(theme::body(13));
+    }
+
     connect(aboutAct, &QAction::triggered, this, [this] {
 #ifdef SCRIBBLE_VERSION
         const QString ver = QStringLiteral(" " SCRIBBLE_VERSION);
@@ -713,6 +779,15 @@ void MainWindow::onScribeEvent(const scribble::gui::ScribeEvent &e) {
             }
         },
         e.ev);
+}
+
+void MainWindow::resizeEvent(QResizeEvent *event) {
+    QMainWindow::resizeEvent(event);
+    // A stacked child does not follow its parent, so the grain is resized by
+    // hand and lifted back above whatever was added since.
+    if (grain_) {
+        grain_->cover(centralWidget());
+    }
 }
 
 void MainWindow::restoreLayout() {

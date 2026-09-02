@@ -20,6 +20,7 @@ class QItemSelection;
 
 namespace scribble::gui {
 
+class GrainOverlay;
 class PipelineController;
 class QueueModel;
 class ProgressDelegate;
@@ -37,6 +38,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dropEvent(QDropEvent *event) override;
 
@@ -88,6 +90,8 @@ private:
     SpeakerPanel *speakerPanel_ = nullptr;
     LogDock *logDock_ = nullptr;
     QSplitter *splitter_ = nullptr;
+    GrainOverlay *grain_ = nullptr;
+    QLabel *queueCount_ = nullptr;
 
     QLabel *statusLabel_ = nullptr;
     QProgressBar *overallProgress_ = nullptr;

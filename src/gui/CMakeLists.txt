@@ -4,6 +4,8 @@ qt_standard_project_setup()
 
 set(GUI_SOURCES
     main.cpp
+    ThemeQt.cpp
+    ThemeWidgets.cpp
     MainWindow.cpp
     PipelineController.cpp
     QueueModel.cpp
@@ -23,6 +25,8 @@ set(GUI_SOURCES
 # Headers are listed so AUTOMOC processes the Q_OBJECT types, including the
 # header-only ones (GuiEventSink, ScribeEvent) that have no matching .cpp.
 set(GUI_HEADERS
+    ThemeQt.hpp
+    ThemeWidgets.hpp
     MainWindow.hpp
     PipelineController.hpp
     QueueModel.hpp
@@ -42,7 +46,10 @@ set(GUI_HEADERS
     FormatUtil.hpp
 )
 
-qt_add_executable(ScribbleGui WIN32 ${GUI_SOURCES} ${GUI_HEADERS})
+# The bundled design-language faces are compiled in rather than shipped beside
+# the binary: a missing font file next to an installed exe would silently drop
+# the application back to Segoe UI.
+qt_add_executable(ScribbleGui WIN32 ${GUI_SOURCES} ${GUI_HEADERS} resources.qrc)
 
 set_target_properties(ScribbleGui PROPERTIES
     # Not "Scribble", which would collide with the CLI. Windows filenames are

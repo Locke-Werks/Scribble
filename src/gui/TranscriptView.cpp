@@ -1,5 +1,6 @@
 #include "TranscriptView.hpp"
 
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
@@ -12,6 +13,8 @@
 #include <functional>
 
 #include "SegmentDelegate.hpp"
+#include "ThemeQt.hpp"
+#include "ThemeWidgets.hpp"
 #include "TranscriptModel.hpp"
 
 namespace scribble::gui {
@@ -58,18 +61,23 @@ TranscriptView::TranscriptView(QWidget *parent) : QWidget(parent) {
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
 
-    heading_ = new QLabel(QStringLiteral("No file selected"), this);
-    heading_->setContentsMargins(8, 6, 8, 6);
-    QFont hf = heading_->font();
-    hf.setBold(true);
-    heading_->setFont(hf);
-    layout->addWidget(heading_);
+    auto *head = new QHBoxLayout;
+    head->setContentsMargins(14, 12, 14, 8);
+    head->addWidget(eyebrow(QStringLiteral("// Transcript"), 15, this));
+    head->addStretch(1);
+    heading_ = monoCaption(QStringLiteral("no file selected"), scribble::theme::kFg4, 11, this);
+    head->addWidget(heading_);
+    layout->addLayout(head);
 
     search_ = new QLineEdit(this);
+    search_->setObjectName(QStringLiteral("Filter"));
     search_->setPlaceholderText(QStringLiteral("Filter transcript"));
     search_->setClearButtonEnabled(true);
-    search_->setContentsMargins(8, 0, 8, 4);
-    layout->addWidget(search_);
+    search_->setFont(theme::body(13));
+    auto *searchWrap = new QHBoxLayout;
+    searchWrap->setContentsMargins(14, 0, 14, 10);
+    searchWrap->addWidget(search_);
+    layout->addLayout(searchWrap);
 
     auto *view = new TranscriptListView(this);
     list_ = view;
@@ -118,7 +126,7 @@ void TranscriptView::showFile(std::int64_t fileId, const QVector<scribble::Segme
 void TranscriptView::clearFile() {
     fileId_ = -1;
     model_->reset({});
-    heading_->setText(QStringLiteral("No file selected"));
+    heading_->setText(QStringLiteral("no file selected"));
 }
 
 void TranscriptView::appendLiveSegment(std::int64_t fileId, const scribble::Segment &segment) {
