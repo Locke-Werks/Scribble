@@ -18,7 +18,7 @@ env:
   # someone choosing it. v0.3.0 is the floor: [[options]] and `when` in
   # installer/installer.toml are silently ignored by anything older, which
   # inverts them rather than switching them off.
-  FORGE_VERSION: v0.3.0
+  FORGE_VERSION: v0.4.0
   # Matches the toolkit the local release build uses, down to the patch release,
   # because cublas64_13.dll and friends are copied out of this install and
   # shipped. CUDA 13 support arrived in cuda-toolkit v0.2.36; older releases of
@@ -204,9 +204,7 @@ jobs:
           }
 
       # No --sign: that flag shells out to scripts/sign.ps1 resolved against the
-      # working directory, which only works inside the Forge repo. Paths are
-      # relative because lwforge resolves product.icon against the config file
-      # and that resolution fails with 0x7b when --config is absolute.
+      # working directory, which only works inside the Forge repo.
       - name: Forge the installer
         shell: pwsh
         run: |

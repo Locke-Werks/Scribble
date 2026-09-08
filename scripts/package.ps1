@@ -113,10 +113,10 @@ if (-not $SkipSign) {
     & (Join-Path $PSScriptRoot 'sign.ps1') $StubCopy
 }
 
-# Paths are passed relative to the repository root on purpose. lwforge resolves
-# product.icon against the config file, and that resolution fails with 0x7b when
-# --config is absolute. Reported against Forge; until it is fixed, running from
-# the root with relative paths is the reliable form.
+# Paths are relative to the repository root, which is what Push-Location is for.
+# It used to be mandatory: lwforge before v0.4.0 resolved product.icon to a path
+# that still contained a .. and failed with 0x7b. Fixed upstream, and the
+# relative form is the tidier one to keep.
 Push-Location $RepoRoot
 try {
     $forgeArgs = @('build',

@@ -198,8 +198,9 @@ get fetched at runtime from NVIDIA's public redistributable index and Microsoft'
 releases, because cuDNN can't be redistributed under NVIDIA's licence and the
 provider is 300 MB of dead weight without it.
 
-`scripts/package.ps1` passes repository-relative paths to `lwforge` on purpose.
-Forge's `long_path()` slaps `\\?\` on absolute paths, which disables Win32 path
-normalisation, so an absolute `--config` makes it resolve `product.icon` to a
-path still containing `..` and fail with `0x7b`. That is a Forge bug, written up
-here so I do not lose another hour to it.
+`scripts/package.ps1` passes repository-relative paths to `lwforge`. That used to
+be mandatory: `long_path()` put `\\?\` on absolute paths without normalising
+them first, so an absolute `--config` resolved `product.icon` to a path still
+containing `..` and failed with `0x7b`. Fixed in Forge v0.4.0, which this repo
+pins. The relative form stays because it is the tidier one, not because it is
+the only one that works.
